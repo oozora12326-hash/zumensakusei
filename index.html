@@ -563,7 +563,6 @@
         return;
       }
 
-      // 設備図面記号スタンプ定義（flipped: true で上下180度回転）
       let stampPresets = [
         { id: "r_main", name: "受信機", kind: "receiver", flipped: false },
         { id: "g_panel", name: "総合盤", kind: "general_panel", flipped: false },
@@ -649,7 +648,6 @@
         statusMsg.textContent = "記号「" + removed.name + "」を削除しました";
       }
 
-      // 選択中スタンプを上下180度回転（反転）
       document.getElementById("btn-flip-stamp").addEventListener("click", function () {
         const st = getSelectedStamp();
         if (!st) return;
@@ -1071,7 +1069,6 @@
         targetCtx.restore();
       }
 
-      // 設備図面記号描画（差動：半円に横棒・上目、定温：半円に縦棒、特六：半円のみ、flippedで上下180度回転）
       function drawStamp(targetCtx, el, isPreview) {
         const x = el.x;
         const y = el.y;
@@ -1086,7 +1083,6 @@
         targetCtx.fillStyle = "#ffffff";
         targetCtx.lineWidth = 2.4;
 
-        // 記号本体グループ（flipped時に中心 y を軸に上下180度反転）
         targetCtx.save();
         targetCtx.translate(x, y);
         if (flipped) {
@@ -1123,7 +1119,6 @@
           targetCtx.lineTo(rx + (rw * 2) / 3, ry + rh - 4);
           targetCtx.stroke();
         } else if (el.kind === "detector_diff") {
-          // 感知器(差動)：上向き半円に横棒（上目）
           const rad = 22;
           const cy = 6;
           targetCtx.beginPath();
@@ -1131,14 +1126,11 @@
           targetCtx.closePath();
           targetCtx.fill();
           targetCtx.stroke();
-
-          // 横棒（上目：半円の上側付近に水平線）
           targetCtx.beginPath();
           targetCtx.moveTo(-rad + 5, cy - rad * 0.52);
           targetCtx.lineTo(rad - 5, cy - rad * 0.52);
           targetCtx.stroke();
         } else if (el.kind === "detector_fixed") {
-          // 感知器(定温)：上向き半円に縦棒
           const rad = 22;
           const cy = 6;
           targetCtx.beginPath();
@@ -1146,14 +1138,11 @@
           targetCtx.closePath();
           targetCtx.fill();
           targetCtx.stroke();
-
-          // 縦棒
           targetCtx.beginPath();
           targetCtx.moveTo(0, cy - rad);
           targetCtx.lineTo(0, cy);
           targetCtx.stroke();
         } else if (el.kind === "detector_tokuroku") {
-          // 感知器(特六)：上向き半円のみ
           const rad = 22;
           const cy = 6;
           targetCtx.beginPath();
@@ -1186,7 +1175,6 @@
 
         targetCtx.restore();
 
-        // 名称ラベルは常に読みやすい向きで下に表示
         targetCtx.fillStyle = col;
         targetCtx.font = "bold 15px sans-serif";
         targetCtx.textAlign = "center";
@@ -1747,29 +1735,88 @@
         btnGridExp.classList.toggle("toggle-on", includeGridOnExport);
       });
 
+      function openPngFallback(dataUrl, filename) {
+        try {
+          const byteString = atob(dataUrl.split(",")[1]);
+          const mimeString = dataUrl.split(",")[0].split(":")[1].split(";")[0];
+          const ab = new ArrayBuffer(byteString.length);
+          const ia = new Uint8Array(ab);
+          for (let i = 0; i < byteString.length; i++) {
+            ia[i] = byteString.charCodeAt(i);
+          }
+          const blob = new Blob([ab], { type: mimeString });
+          const blobUrl = URL.createObjectURL(blob);
+
+          const a = document.createElement("a");
+          a.href = blobUrl;
+          a.download = filename;
+          a.rel = "noopener";
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+
+          setTimeout(function () {
+            URL.revokeObjectURL(blobUrl);
+          }, 4000);
+        } catch (err) {
+          const win = window.open("", "_blank");
+          if (win && win.document) {
+            win.document.write(
+              '<html><body style="margin:0;background:#111;display:flex;align-items:center;justify-content:center;">' +
+              '<img src="' + dataUrl + '" style="max-width:100%;height:auto;" alt="' + filename + '" />' +
+              "</body></html>"
+            );
+            win.document.close();
+          } else {
+            logStatus("PNG出力エラー: ポップアップを確認してください");
+          }
+        }
+      }
+
       document.getElementById("export-png").addEventListener("click", function () {
-        const off = document.createElement("canvas");
-        renderPageToCanvas(currentPage(), off, includeGridOnExport);
-        const a = document.createElement("a");
-        a.download = "図面_P" + (currentPageIndex + 1) + ".png";
-        a.href = off.toDataURL("image/png");
-        a.click();
+        try {
+          const off = document.createElement("canvas");
+          renderPageToCanvas(currentPage(), off, includeGridOnExport);
+          const dataUrl = off.toDataURL("image/png");
+          const filename = "図面_P" + (currentPageIndex + 1) + ".png";
+          openPngFallback(dataUrl, filename);
+          statusMsg.textContent = (currentPageIndex + 1) + " ページ目のPNG出力を実行しました";
+          logStatus("PNG出力完了");
+        } catch (err) {
+          logStatus("PNG失敗: " + (err && err.message ? err.message : "エラー"));
+        }
       });
 
       document.getElementById("export-pdf").addEventListener("click", function () {
-        const container = document.getElementById("print-container");
-        container.innerHTML = "";
-        pages.forEach(function (p) {
-          const off = document.createElement("canvas");
-          renderPageToCanvas(p, off, includeGridOnExport);
-          const div = document.createElement("div");
-          div.className = "print-page";
-          const img = document.createElement("img");
-          img.src = off.toDataURL("image/png");
-          div.appendChild(img);
-          container.appendChild(div);
-        });
-        setTimeout(function () { window.print(); }, 150);
+        try {
+          const container = document.getElementById("print-container");
+          if (!container) {
+            logStatus("印刷領域が見つかりません");
+            return;
+          }
+          container.innerHTML = "";
+          pages.forEach(function (p) {
+            const off = document.createElement("canvas");
+            renderPageToCanvas(p, off, includeGridOnExport);
+            const div = document.createElement("div");
+            div.className = "print-page";
+            const img = document.createElement("img");
+            img.src = off.toDataURL("image/png");
+            div.appendChild(img);
+            container.appendChild(div);
+          });
+          statusMsg.textContent = "PDF印刷画面を開きます（「共有」や「PDFに保存」を選択）";
+          logStatus("PDF印刷準備完了");
+          setTimeout(function () {
+            try {
+              window.print();
+            } catch (printErr) {
+              logStatus("印刷ダイアログ起動失敗");
+            }
+          }, 250);
+        } catch (err) {
+          logStatus("PDF失敗: " + (err && err.message ? err.message : "エラー"));
+        }
       });
 
       window.addEventListener("resize", resizeCanvasDisplay);
