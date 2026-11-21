@@ -1,0 +1,937 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>A4図面ホワイトボード（自動図形認識・寸法線・複数ページ複製対応）</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      background: #1e242b;
+      color: #f1f5f9;
+      font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
+      overflow: hidden;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    #app {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      width: 100%;
+    }
+
+    /* ツールバー共通 */
+    .toolbar {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 6px 10px;
+      background: #27303a;
+      border-bottom: 1px solid #384452;
+      z-index: 10;
+    }
+
+    .toolbar-group {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      background: #1e252d;
+      padding: 3px;
+      border-radius: 8px;
+      border: 1px solid #333e4b;
+    }
+
+    button {
+      appearance: none;
+      border: 1px solid transparent;
+      background: transparent;
+      color: #e2e8f0;
+      font-size: 13px;
+      font-weight: 600;
+      padding: 6px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      min-height: 34px;
+      white-space: nowrap;
+      transition: background 0.15s, border-color 0.15s, transform 0.05s;
+    }
+
+    button:active {
+      transform: scale(0.97);
+    }
+
+    button:hover {
+      background: #334155;
+    }
+
+    button.active {
+      background: #2563eb;
+      color: #ffffff;
+      border-color: #60a5fa;
+    }
+
+    button.toggle-on {
+      background: #0d9488;
+      color: #ffffff;
+      border-color: #2dd4bf;
+    }
+
+    button.danger {
+      color: #fca5a5;
+    }
+    button.danger:hover {
+      background: #7f1d1d;
+      color: #fff;
+    }
+
+    button.primary-export {
+      background: #2563eb;
+      color: #fff;
+      border-color: #3b82f6;
+    }
+    button.primary-export:hover {
+      background: #1d4ed8;
+    }
+
+    button.secondary-export {
+      background: #059669;
+      color: #fff;
+      border-color: #10b981;
+    }
+    button.secondary-export:hover {
+      background: #047857;
+    }
+
+    button:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    /* カラーボタン */
+    .color-btn {
+      width: 26px;
+      height: 26px;
+      min-height: 26px;
+      padding: 0;
+      border-radius: 50%;
+      border: 2px solid #475569;
+    }
+    .color-btn.active {
+      border: 2px solid #ffffff;
+      box-shadow: 0 0 0 2px #2563eb;
+      background-color: inherit;
+    }
+
+    /* ページ管理バー */
+    .page-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 5px 10px;
+      background: #202730;
+      border-bottom: 1px solid #333e4b;
+      font-size: 13px;
+    }
+
+    .page-indicator {
+      font-weight: 700;
+      padding: 0 8px;
+      color: #f8fafc;
+      min-width: 88px;
+      text-align: center;
+    }
+
+    /* メインキャンバスエリア */
+    #workspace {
+      flex: 1;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      padding: 14px;
+      background: #171c22;
+    }
+
+    #paper-wrapper {
+      position: relative;
+      background: #ffffff;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.55);
+      border-radius: 2px;
+      overflow: hidden;
+      touch-action: none;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      touch-action: none;
+    }
+
+    /* 寸法入力モーダル */
+    #dim-modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.65);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      padding: 16px;
+    }
+    #dim-modal-backdrop.open {
+      display: flex;
+    }
+
+    #dim-modal {
+      background: #1e293b;
+      border: 1px solid #475569;
+      border-radius: 12px;
+      padding: 16px;
+      width: 100%;
+      max-width: 340px;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+    }
+
+    #dim-modal h3 {
+      margin: 0 0 10px;
+      font-size: 15px;
+      color: #f8fafc;
+    }
+
+    #dim-input {
+      width: 100%;
+      padding: 10px 12px;
+      font-size: 18px;
+      font-weight: 700;
+      border-radius: 8px;
+      border: 1px solid #64748b;
+      background: #0f172a;
+      color: #ffffff;
+      outline: none;
+      margin-bottom: 10px;
+    }
+    #dim-input:focus {
+      border-color: #3b82f6;
+    }
+
+    .unit-chips {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 14px;
+    }
+    .unit-chip {
+      flex: 1;
+      background: #334155;
+      border: 1px solid #475569;
+      font-size: 13px;
+      padding: 6px;
+    }
+
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    /* トースト通知 */
+    #toast {
+      position: fixed;
+      bottom: 18px;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: rgba(15, 23, 42, 0.92);
+      color: #f8fafc;
+      border: 1px solid #475569;
+      padding: 8px 16px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 600;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s, transform 0.2s;
+      z-index: 200;
+    }
+    #toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    /* 印刷（PDF出力）用スタイル */
+    #print-container {
+      display: none;
+    }
+
+    @media print {
+      @page {
+        margin: 0;
+      }
+      html, body {
+        background: #ffffff !important;
+        overflow: visible !important;
+        height: auto !important;
+      }
+      #app, #dim-modal-backdrop, #toast {
+        display: none !important;
+      }
+      #print-container {
+        display: block !important;
+      }
+      .print-page {
+        page-break-after: always;
+        break-after: page;
+        width: 100vw;
+        height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0;
+        padding: 0;
+      }
+      .print-page:last-child {
+        page-break-after: auto;
+        break-after: auto;
+      }
+      .print-page img {
+        max-width: 100%;
+        max-height: 100%;
+        object-fit: contain;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <!-- 上部メインツールバー -->
+    <div class="toolbar">
+      <!-- 描画ツール -->
+      <div class="toolbar-group">
+        <button id="tool-pen" class="active" title="ペン描画">✏️ ペン</button>
+        <button id="tool-dim" title="ドラッグで両矢印寸法線を追加">↔ 寸法線</button>
+        <button id="tool-eraser" title="なぞって要素を丸ごと消去">🧹 消しゴム</button>
+      </div>
+
+      <!-- 自動図形認識 -->
+      <div class="toolbar-group">
+        <button id="toggle-auto-shape" class="toggle-on" title="手書きの直線・四角・丸を自動整形">✨ 自動図形化: ON</button>
+      </div>
+
+      <!-- ペン太さ（極細・細[デフォルト]・中・太） -->
+      <div class="toolbar-group" id="width-group">
+        <button class="width-btn" data-width="1.2">極細</button>
+        <button class="width-btn active" data-width="2.5">細</button>
+        <button class="width-btn" data-width="4.5">中</button>
+        <button class="width-btn" data-width="7.5">太</button>
+      </div>
+
+      <!-- ペン色 -->
+      <div class="toolbar-group" id="color-group">
+        <button class="color-btn active" data-color="#111827" style="background:#111827;" title="黒"></button>
+        <button class="color-btn" data-color="#dc2626" style="background:#dc2626;" title="赤"></button>
+        <button class="color-btn" data-color="#2563eb" style="background:#2563eb;" title="青"></button>
+        <button class="color-btn" data-color="#059669" style="background:#059669;" title="緑"></button>
+      </div>
+
+      <!-- 履歴操作 -->
+      <div class="toolbar-group">
+        <button id="btn-undo" disabled title="元に戻す">↩ 戻す</button>
+        <button id="btn-redo" disabled title="やり直し">↪ 進む</button>
+        <button id="btn-clear" class="danger" title="現在のページを全消去">🗑 全消去</button>
+      </div>
+    </div>
+
+    <!-- ページ管理 & 用紙・出力バー -->
+    <div class="page-bar">
+      <div class="toolbar-group">
+        <button id="btn-prev-page" title="前のページ">◀</button>
+        <span class="page-indicator" id="page-indicator">1 / 1 ページ</span>
+        <button id="btn-next-page" title="次のページ">▶</button>
+        <button id="btn-new-page" title="新しい白紙ページを追加">＋ 新規</button>
+        <button id="btn-dup-page" title="現在の図面をコピーして別ページに複製">📋 複製</button>
+        <button id="btn-del-page" class="danger" title="現在のページを削除">削除</button>
+      </div>
+
+      <div class="toolbar-group">
+        <button id="btn-orientation" title="A4縦・横を切り替え">📄 A4 縦</button>
+        <button id="btn-grid" class="toggle-on" title="方眼グリッド表示切替">＃ グリッド: ON</button>
+      </div>
+
+      <div class="toolbar-group">
+        <button id="btn-export-png" class="secondary-export" title="現在のページをPNG画像で保存">🖼 PNG保存</button>
+        <button id="btn-export-pdf" class="primary-export" title="全ページをA4 PDFとして出力">📑 PDF出力</button>
+      </div>
+    </div>
+
+    <!-- A4キャンバス作業領域 -->
+    <div id="workspace">
+      <div id="paper-wrapper">
+        <canvas id="board"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- 寸法テキスト入力モーダル -->
+  <div id="dim-modal-backdrop">
+    <div id="dim-modal">
+      <h3>寸法テキストを入力</h3>
+      <input type="text" id="dim-input" placeholder="例: 1200, 3.5m, 450mm" autocomplete="off" />
+      <div class="unit-chips">
+        <button type="button" class="unit-chip" data-suffix="mm">+ mm</button>
+        <button type="button" class="unit-chip" data-suffix="cm">+ cm</button>
+        <button type="button" class="unit-chip" data-suffix="m">+ m</button>
+        <button type="button" class="unit-chip" id="unit-clear">クリア</button>
+      </div>
+      <div class="modal-actions">
+        <button type="button" id="dim-cancel">キャンセル</button>
+        <button type="button" id="dim-save" class="primary-export">確定</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 印刷用コンテナ（複数ページPDF出力用） -->
+  <div id="print-container"></div>
+
+  <!-- トースト通知 -->
+  <div id="toast"></div>
+
+  <script>
+    (function () {
+      // A4基準解像度（内部座標系）
+      const A4_SHORT = 1240;
+      const A4_LONG = 1754;
+
+      // アプリ状態
+      const state = {
+        tool: 'pen', // 'pen' | 'dim' | 'eraser'
+        autoShape: true,
+        strokeWidth: 2.5, // デフォルト「細」
+        strokeColor: '#111827',
+        showGrid: true,
+        pages: [],
+        currentPageIndex: 0
+      };
+
+      // 新規ページオブジェクト生成
+      function createPage(orientation = 'portrait', items = []) {
+        return {
+          id: 'page_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+          orientation: orientation, // 'portrait' | 'landscape'
+          items: JSON.parse(JSON.stringify(items)),
+          undoStack: [],
+          redoStack: []
+        };
+      }
+
+      // 初期ページ
+      state.pages.push(createPage('portrait', []));
+
+      function currentPage() {
+        return state.pages[state.currentPageIndex];
+      }
+
+      function getCanvasLogicalSize(page = currentPage()) {
+        return page.orientation === 'portrait'
+          ? { width: A4_SHORT, height: A4_LONG }
+          : { width: A4_LONG, height: A4_SHORT };
+      }
+
+      // DOM要素
+      const workspace = document.getElementById('workspace');
+      const paperWrapper = document.getElementById('paper-wrapper');
+      const canvas = document.getElementById('board');
+      const ctx = canvas.getContext('2d');
+
+      const btnPen = document.getElementById('tool-pen');
+      const btnDim = document.getElementById('tool-dim');
+      const btnEraser = document.getElementById('tool-eraser');
+      const btnAutoShape = document.getElementById('toggle-auto-shape');
+      const btnUndo = document.getElementById('btn-undo');
+      const btnRedo = document.getElementById('btn-redo');
+      const btnClear = document.getElementById('btn-clear');
+
+      const btnPrevPage = document.getElementById('btn-prev-page');
+      const btnNextPage = document.getElementById('btn-next-page');
+      const pageIndicator = document.getElementById('page-indicator');
+      const btnNewPage = document.getElementById('btn-new-page');
+      const btnDupPage = document.getElementById('btn-dup-page');
+      const btnDelPage = document.getElementById('btn-del-page');
+
+      const btnOrientation = document.getElementById('btn-orientation');
+      const btnGrid = document.getElementById('btn-grid');
+      const btnExportPng = document.getElementById('btn-export-png');
+      const btnExportPdf = document.getElementById('btn-export-pdf');
+
+      const dimModalBackdrop = document.getElementById('dim-modal-backdrop');
+      const dimInput = document.getElementById('dim-input');
+      const dimSave = document.getElementById('dim-save');
+      const dimCancel = document.getElementById('dim-cancel');
+      const unitClear = document.getElementById('unit-clear');
+      const printContainer = document.getElementById('print-container');
+      const toastEl = document.getElementById('toast');
+
+      // トースト表示
+      let toastTimer = null;
+      function showToast(msg) {
+        toastEl.textContent = msg;
+        toastEl.classList.add('show');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => toastEl.classList.remove('show'), 2200);
+      }
+
+      // 履歴スナップショット保存
+      function pushHistory() {
+        const page = currentPage();
+        page.undoStack.push(JSON.stringify(page.items));
+        if (page.undoStack.length > 50) page.undoStack.shift();
+        page.redoStack = [];
+        updateUI();
+      }
+
+      function undo() {
+        const page = currentPage();
+        if (page.undoStack.length === 0) return;
+        page.redoStack.push(JSON.stringify(page.items));
+        page.items = JSON.parse(page.undoStack.pop());
+        render();
+        updateUI();
+      }
+
+      function redo() {
+        const page = currentPage();
+        if (page.redoStack.length === 0) return;
+        page.undoStack.push(JSON.stringify(page.items));
+        page.items = JSON.parse(page.redoStack.pop());
+        render();
+        updateUI();
+      }
+
+      // UI更新
+      function updateUI() {
+        const page = currentPage();
+        btnPen.classList.toggle('active', state.tool === 'pen');
+        btnDim.classList.toggle('active', state.tool === 'dim');
+        btnEraser.classList.toggle('active', state.tool === 'eraser');
+
+        btnAutoShape.classList.toggle('toggle-on', state.autoShape);
+        btnAutoShape.textContent = state.autoShape ? '✨ 自動図形化: ON' : '✨ 自動図形化: OFF';
+
+        btnGrid.classList.toggle('toggle-on', state.showGrid);
+        btnGrid.textContent = state.showGrid ? '＃ グリッド: ON' : '＃ グリッド: OFF';
+
+        btnOrientation.textContent = page.orientation === 'portrait' ? '📄 A4 縦' : '📄 A4 横';
+
+        btnUndo.disabled = page.undoStack.length === 0;
+        btnRedo.disabled = page.redoStack.length === 0;
+
+        pageIndicator.textContent = `${state.currentPageIndex + 1} / ${state.pages.length} ページ`;
+        btnPrevPage.disabled = state.currentPageIndex === 0;
+        btnNextPage.disabled = state.currentPageIndex === state.pages.length - 1;
+        btnDelPage.disabled = state.pages.length <= 1;
+      }
+
+      // キャンバスリサイズ（A4アスペクト比維持）
+      function resizeCanvas() {
+        const page = currentPage();
+        const logical = getCanvasLogicalSize(page);
+        canvas.width = logical.width;
+        canvas.height = logical.height;
+
+        const rect = workspace.getBoundingClientRect();
+        const availW = Math.max(100, rect.width - 28);
+        const availH = Math.max(100, rect.height - 28);
+        const ratio = logical.width / logical.height;
+
+        let displayW = availW;
+        let displayH = displayW / ratio;
+        if (displayH > availH) {
+          displayH = availH;
+          displayW = displayH * ratio;
+        }
+
+        paperWrapper.style.width = `${Math.floor(displayW)}px`;
+        paperWrapper.style.height = `${Math.floor(displayH)}px`;
+        render();
+      }
+
+      // 画面座標 → キャンバス内部座標変換
+      function getCanvasPoint(e) {
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        return {
+          x: (e.clientX - rect.left) * scaleX,
+          y: (e.clientY - rect.top) * scaleY
+        };
+      }
+
+      // ==========================================
+      // 手書き図形の自動認識ロジック
+      // ==========================================
+      function distance(p1, p2) {
+        return Math.hypot(p2.x - p1.x, p2.y - p1.y);
+      }
+
+      function pointToSegmentDist(p, a, b) {
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const lenSq = dx * dx + dy * dy;
+        if (lenSq === 0) return distance(p, a);
+        let t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / lenSq;
+        t = Math.max(0, Math.min(1, t));
+        return distance(p, { x: a.x + t * dx, y: a.y + t * dy });
+      }
+
+      function recognizeShape(points, color, width) {
+        if (points.length < 3) {
+          return { type: 'stroke', points, color, width };
+        }
+
+        // 総パス長とバウンディングボックス
+        let pathLen = 0;
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        for (let i = 0; i < points.length; i++) {
+          const p = points[i];
+          if (p.x < minX) minX = p.x;
+          if (p.y < minY) minY = p.y;
+          if (p.x > maxX) maxX = p.x;
+          if (p.y > maxY) maxY = p.y;
+          if (i > 0) pathLen += distance(points[i - 1], p);
+        }
+
+        const boxW = maxX - minX;
+        const boxH = maxY - minY;
+        const maxDim = Math.max(boxW, boxH);
+        if (pathLen < 25 || maxDim < 20) {
+          return { type: 'stroke', points, color, width };
+        }
+
+        const start = points[0];
+        const end = points[points.length - 1];
+        const endDist = distance(start, end);
+
+        // 1. 直線判定（始点と終点が離れており、全点が線分に近い）
+        if (endDist > 35 && endDist / pathLen > 0.88) {
+          let maxDev = 0;
+          for (const p of points) {
+            const d = pointToSegmentDist(p, start, end);
+            if (d > maxDev) maxDev = d;
+          }
+          if (maxDev / endDist < 0.08) {
+            // 水平・垂直の軽いスナップ（±4度以内）
+            let x2 = end.x;
+            let y2 = end.y;
+            const angle = Math.abs(Math.atan2(y2 - start.y, x2 - start.x) * 180 / Math.PI);
+            if (angle < 4 || angle > 176) {
+              y2 = start.y;
+            } else if (Math.abs(angle - 90) < 4) {
+              x2 = start.x;
+            }
+            return {
+              type: 'line',
+              x1: start.x,
+              y1: start.y,
+              x2,
+              y2,
+              color,
+              width
+            };
+          }
+        }
+
+        // 2. 閉じた図形（四角形 vs 丸・楕円）
+        const isClosed = endDist < Math.max(45, maxDim * 0.28) && pathLen > maxDim * 2.1;
+        if (isClosed && boxW > 20 && boxH > 20) {
+          // ポリゴン面積計算（靴紐公式）
+          let area = 0;
+          for (let i = 0; i < points.length; i++) {
+            const p1 = points[i];
+            const p2 = points[(i + 1) % points.length];
+            area += (p1.x * p2.y - p2.x * p1.y);
+          }
+          area = Math.abs(area) * 0.5;
+          const boxArea = boxW * boxH;
+          const fillRatio = area / boxArea;
+
+          // バウンディングボックス辺への近接度（四角形らしさ）
+          let nearEdgeCount = 0;
+          const edgeTol = Math.max(12, Math.min(boxW, boxH) * 0.14);
+          for (const p of points) {
+            const dLeft = Math.abs(p.x - minX);
+            const dRight = Math.abs(p.x - maxX);
+            const dTop = Math.abs(p.y - minY);
+            const dBottom = Math.abs(p.y - maxY);
+            if (Math.min(dLeft, dRight, dTop, dBottom) < edgeTol) {
+              nearEdgeCount++;
+            }
+          }
+          const edgeRatio = nearEdgeCount / points.length;
+
+          // 正規化半径のばらつき（楕円・円らしさ）
+          const cx = (minX + maxX) / 2;
+          const cy = (minY + maxY) / 2;
+          const rx = boxW / 2;
+          const ry = boxH / 2;
+          const normRadii = points.map(p => Math.hypot((p.x - cx) / rx, (p.y - cy) / ry));
+          const meanR = normRadii.reduce((a, b) => a + b, 0) / normRadii.length;
+          const stdR = Math.sqrt(normRadii.reduce((a, b) => a + (b - meanR) ** 2, 0) / normRadii.length);
+          const cvR = stdR / meanR;
+
+          // 丸・楕円判定（理想面積比 π/4 ≈ 0.785、正規化半径の変動が小さい）
+          if (cvR < 0.14 && fillRatio > 0.62 && fillRatio < 0.90) {
+            // 縦横比がほぼ1なら正円に補正
+            const aspect = boxW / boxH;
+            let finalRx = rx;
+            let finalRy = ry;
+            if (aspect > 0.85 && aspect < 1.18) {
+              const avgR = (rx + ry) / 2;
+              finalRx = avgR;
+              finalRy = avgR;
+            }
+            return {
+              type: 'ellipse',
+              cx,
+              cy,
+              rx: finalRx,
+              ry: finalRy,
+              color,
+              width
+            };
+          }
+
+          // 四角形判定（バウンディングボックスの4辺に沿っている & 面積比が高め）
+          if (edgeRatio > 0.72 && fillRatio > 0.68) {
+            return {
+              type: 'rect',
+              x: minX,
+              y: minY,
+              w: boxW,
+              h: boxH,
+              color,
+              width
+            };
+          }
+        }
+
+        return { type: 'stroke', points, color, width };
+      }
+
+      // ==========================================
+      // 描画処理
+      // ==========================================
+      function drawGrid(targetCtx, width, height) {
+        const step = 40; // 約5〜7mm相当のグリッド間隔
+        targetCtx.save();
+        targetCtx.strokeStyle = '#e2e8f0';
+        targetCtx.lineWidth = 1;
+        targetCtx.beginPath();
+        for (let x = step; x < width; x += step) {
+          targetCtx.moveTo(x, 0);
+          targetCtx.lineTo(x, height);
+        }
+        for (let y = step; y < height; y += step) {
+          targetCtx.moveTo(0, y);
+          targetCtx.lineTo(width, y);
+        }
+        targetCtx.stroke();
+
+        // 5マスごとの濃い線
+        targetCtx.strokeStyle = '#cbd5e1';
+        targetCtx.beginPath();
+        for (let x = step * 5; x < width; x += step * 5) {
+          targetCtx.moveTo(x, 0);
+          targetCtx.lineTo(x, height);
+        }
+        for (let y = step * 5; y < height; y += step * 5) {
+          targetCtx.moveTo(0, y);
+          targetCtx.lineTo(width, y);
+        }
+        targetCtx.stroke();
+        targetCtx.restore();
+      }
+
+      function drawItem(targetCtx, item, isHoveredForErase = false) {
+        targetCtx.save();
+        targetCtx.lineCap = 'round';
+        targetCtx.lineJoin = 'round';
+        targetCtx.strokeStyle = isHoveredForErase ? '#f43f5e' : item.color;
+        targetCtx.fillStyle = isHoveredForErase ? '#f43f5e' : item.color;
+        targetCtx.lineWidth = item.width || 2.5;
+        if (isHoveredForErase) {
+          targetCtx.globalAlpha = 0.45;
+        }
+
+        if (item.type === 'stroke') {
+          if (item.points.length > 0) {
+            targetCtx.beginPath();
+            targetCtx.moveTo(item.points[0].x, item.points[0].y);
+            for (let i = 1; i < item.points.length; i++) {
+              targetCtx.lineTo(item.points[i].x, item.points[i].y);
+            }
+            targetCtx.stroke();
+          }
+        } else if (item.type === 'line') {
+          targetCtx.beginPath();
+          targetCtx.moveTo(item.x1, item.y1);
+          targetCtx.lineTo(item.x2, item.y2);
+          targetCtx.stroke();
+        } else if (item.type === 'rect') {
+          targetCtx.strokeRect(item.x, item.y, item.w, item.h);
+        } else if (item.type === 'ellipse') {
+          targetCtx.beginPath();
+          targetCtx.ellipse(item.cx, item.cy, item.rx, item.ry, 0, 0, Math.PI * 2);
+          targetCtx.stroke();
+        } else if (item.type === 'dimension') {
+          drawDimension(targetCtx, item, isHoveredForErase);
+        }
+
+        targetCtx.restore();
+      }
+
+      function drawDimension(targetCtx, dim, isHoveredForErase) {
+        const { x1, y1, x2, y2, text, color, width } = dim;
+        const dx = x2 - x1;
+        const dy = y2 - y1;
+        const len = Math.hypot(dx, dy);
+        if (len < 1) return;
+
+        const angle = Math.atan2(dy, dx);
+        const arrowLen = Math.max(14, (width || 2.5) * 4.5);
+        const arrowAngle = Math.PI / 7;
+
+        targetCtx.strokeStyle = isHoveredForErase ? '#f43f5e' : color;
+        targetCtx.fillStyle = isHoveredForErase ? '#f43f5e' : color;
+        targetCtx.lineWidth = width || 2.5;
+
+        // 主線
+        targetCtx.beginPath();
+        targetCtx.moveTo(x1, y1);
+        targetCtx.lineTo(x2, y2);
+        targetCtx.stroke();
+
+        // 始点側矢印
+        targetCtx.beginPath();
+        targetCtx.moveTo(x1, y1);
+        targetCtx.lineTo(
+          x1 + arrowLen * Math.cos(angle - arrowAngle),
+          y1 + arrowLen * Math.sin(angle - arrowAngle)
+        );
+        targetCtx.lineTo(
+          x1 + arrowLen * Math.cos(angle + arrowAngle),
+          y1 + arrowLen * Math.sin(angle + arrowAngle)
+        );
+        targetCtx.closePath();
+        targetCtx.fill();
+
+        // 終点側矢印
+        targetCtx.beginPath();
+        targetCtx.moveTo(x2, y2);
+        targetCtx.lineTo(
+          x2 - arrowLen * Math.cos(angle - arrowAngle),
+          y2 - arrowLen * Math.sin(angle - arrowAngle)
+        );
+        targetCtx.lineTo(
+          x2 - arrowLen * Math.cos(angle + arrowAngle),
+          y2 - arrowLen * Math.sin(angle + arrowAngle)
+        );
+        targetCtx.closePath();
+        targetCtx.fill();
+
+        // 寸法テキスト描画
+        const label = (text && text.trim()) ? text.trim() : '寸法';
+        const mx = (x1 + x2) / 2;
+        const my = (y1 + y2) / 2;
+
+        targetCtx.save();
+        targetCtx.translate(mx, my);
+        let textAngle = angle;
+        if (textAngle > Math.PI / 2 || textAngle < -Math.PI / 2) {
+          textAngle += Math.PI;
+        }
+        targetCtx.rotate(textAngle);
+
+        targetCtx.font = 'bold 22px -apple-system, BlinkMacSystemFont, "Hiragino Sans", sans-serif';
+        targetCtx.textAlign = 'center';
+        targetCtx.textBaseline = 'middle';
+
+        const metrics = targetCtx.measureText(label);
+        const padX = 10;
+        const boxW = metrics.width + padX * 2;
+        const boxH = 30;
+
+        // 白背景の下敷き
+        targetCtx.fillStyle = '#ffffff';
+        targetCtx.fillRect(-boxW / 2, -boxH / 2, boxW, boxH);
+
+        // テキスト
+        targetCtx.fillStyle = isHoveredForErase ? '#f43f5e' : color;
+        targetCtx.fillText(label, 0, 1);
+        targetCtx.restore();
+      }
+
+      // 描画中の一時状態
+      let isDrawing = false;
+      let activePoints = [];
+      let activeDim = null;
+      let eraserPos = null;
+      let erasedInCurrentDrag = false;
+      const ERASER_RADIUS = 24;
+
+      function renderToContext(targetCtx, page, includeGrid) {
+        const { width, height } = getCanvasLogicalSize(page);
+        targetCtx.fillStyle = '#ffffff';
+        targetCtx.fillRect(0, 0, width, height);
+
+        if (includeGrid) {
+          drawGrid(targetCtx, width, height);
+        }
+
+        for (const item of page.items) {
+          drawItem(targetCtx, item, false);
+        }
+      }
+
+      function render() {
+        const page = currentPage();
+        renderToContext(ctx, page, state.showGrid);
+
+        // 描画中のプレビュー
+        if (isDrawing && state.tool === 'pen' && activePoints.length > 0) {
+          drawItem(ctx, {
+            type: 'stroke',
+            points: activePoints,
+            color: state.strokeColor,
+            width: state.strokeWidth
+          });
+        } else if (isDrawing && state.tool === 'dim' && activeDim) {
+          drawDimension(ctx, activeDim, false);
+        }
+
+        // 消しゴムリングカーソル
+        if (state.tool === 'eraser' && eraserPos) {
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(eraserPos.x, eraserPos.y, ERASER_RADIUS, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(244, 63, 94, 0.14)';
+          ctx.fill();
+          ctx.lineWidth = 2;
+          ctx.strokeStyle = '#f43f5e';
+          ctx.stroke();
+          ctx.
