@@ -82,7 +82,7 @@
       font-size: 12px;
       color: var(--text-muted);
       white-space: nowrap;
-      margin-right: 4px;
+      margin-right: 2px;
     }
 
     .stamp-btn {
@@ -94,6 +94,7 @@
       min-height: 32px;
       border-radius: 6px;
       white-space: nowrap;
+      touch-action: none;
     }
 
     .stamp-btn.active {
@@ -101,6 +102,15 @@
       border-color: #93c5fd;
       color: #fff;
       font-weight: 600;
+    }
+
+    .stamp-btn.dragging {
+      background: #f59e0b;
+      border-color: #fde68a;
+      color: #111827;
+      font-weight: 700;
+      transform: scale(1.06);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
     }
 
     .stamp-add-btn {
@@ -112,6 +122,25 @@
       min-height: 32px;
       border-radius: 6px;
       white-space: nowrap;
+    }
+
+    .stamp-trash-btn {
+      background: rgba(239, 68, 68, 0.16);
+      border: 1px solid rgba(239, 68, 68, 0.5);
+      color: #fca5a5;
+      font-size: 12px;
+      padding: 5px 9px;
+      min-height: 32px;
+      border-radius: 6px;
+      white-space: nowrap;
+      margin-left: auto;
+    }
+
+    .stamp-trash-btn.drag-over {
+      background: var(--danger);
+      border-color: #fecaca;
+      color: #fff;
+      transform: scale(1.08);
     }
 
     .group {
@@ -392,11 +421,12 @@
     </div>
   </div>
 
-  <!-- 設備図面記号スタンプバー（受信機・総合盤・感知器系・分電盤 + 保存追加） -->
+  <!-- 設備図面記号スタンプバー -->
   <div class="stamp-bar hidden" id="stamp-bar">
     <span class="stamp-label-hdr">設備記号:</span>
     <div id="stamp-list" style="display:flex;align-items:center;gap:6px;"></div>
     <button type="button" id="btn-add-stamp" class="stamp-add-btn">＋ 記号保存</button>
+    <button type="button" id="btn-stamp-trash" class="stamp-trash-btn" title="選択中の記号を削除、または長押しドラッグでここへ移動して削除">🗑️ ゴミ箱</button>
   </div>
 
   <div class="subbar">
@@ -432,7 +462,7 @@
     <span id="debug-info">準備完了</span>
   </div>
 
-  <!-- 寸法テキスト入力モーダル（数字キーボード優先） -->
+  <!-- 寸法テキスト入力モーダル -->
   <div class="modal-backdrop" id="dim-modal">
     <div class="modal-box">
       <h3>寸法数値を入力</h3>
@@ -477,7 +507,9 @@
       <select id="custom-stamp-kind" class="modal-select">
         <option value="receiver">受信機系（対角線枠）</option>
         <option value="general_panel">総合盤・複合盤系（連動盤枠）</option>
-        <option value="detector_heat">感知器系：定温式/差動式（半円）</option>
+        <option value="detector_diff">感知器(差動)（180度回転半円）</option>
+        <option value="detector_fixed">感知器(定温)（半円＋縦棒）</option>
+        <option value="detector_tokuroku">感知器(特六)（半円のみ）</option>
         <option value="detector_smoke">感知器系：煙感知器（四角＋S）</option>
         <option value="dist_board">分電盤系（盤記号）</option>
       </select>
@@ -507,8 +539,6 @@
 
       const A4_SHORT = 1240;
       const A4_LONG = 1754;
-
-      // 消しゴム判定半径（以前より小さく設定）
       const ERASER_RADIUS = 11;
 
       const canvas = document.getElementById("board");
@@ -521,19 +551,27 @@
         return;
       }
 
-      // 設備図面記号スタンプ定義（受信機・総合盤・感知器系・分電盤）
+      // 設備図面記号スタンプ定義
       let stampPresets = [
-        { id: "r_main", name: "受信機", kind: "receiver", sub: "REC" },
-        { id: "g_panel", name: "総合盤", kind: "general_panel", sub: "総合" },
-        { id: "d_heat", name: "感知器(熱)", kind: "detector_heat", sub: "差動/定温" },
-        { id: "d_smoke", name: "感知器(煙)", kind: "detector_smoke", sub: "S" },
-        { id: "p_dist", name: "分電盤", kind: "dist_board", sub: "DB" }
+        { id: "r_main", name: "受信機", kind: "receiver" },
+        { id: "g_panel", name: "総合盤", kind: "general_panel" },
+        { id: "d_diff", name: "感知器(差動)", kind: "detector_diff" },
+        { id: "d_fixed", name: "感知器(定温)", kind: "detector_fixed" },
+        { id: "d_tokuroku", name: "感知器(特六)", kind: "detector_tokuroku" },
+        { id: "d_smoke", name: "感知器(煙)", kind: "detector_smoke" },
+        { id: "p_dist", name: "分電盤", kind: "dist_board" }
       ];
 
       let selectedStampId = stampPresets[0].id;
       let stampHoverPos = null;
 
-      let tool = "pen"; // 'pen' | 'stamp' | 'dim' | 'eraser'
+      // スタンプ長押し並び替え・ゴミ箱状態
+      let longPressTimer = null;
+      let draggingStampId = null;
+      let suppressNextStampClick = false;
+      const trashBtn = document.getElementById("btn-stamp-trash");
+
+      let tool = "pen";
       let autoShape = true;
       let penColor = "#111827";
       let penWidth = 2.4;
@@ -571,27 +609,162 @@
       }
 
       function getSelectedStamp() {
+        if (!stampPresets.length) return null;
         return stampPresets.find(function (s) { return s.id === selectedStampId; }) || stampPresets[0];
+      }
+
+      function isOverTrash(clientX, clientY) {
+        if (!trashBtn) return false;
+        const rect = trashBtn.getBoundingClientRect();
+        return (
+          clientX >= rect.left - 8 &&
+          clientX <= rect.right + 8 &&
+          clientY >= rect.top - 8 &&
+          clientY <= rect.bottom + 8
+        );
+      }
+
+      function deleteStampById(stampId) {
+        if (!stampId) return;
+        const idx = stampPresets.findIndex(function (s) { return s.id === stampId; });
+        if (idx === -1) return;
+        const removed = stampPresets[idx];
+        stampPresets.splice(idx, 1);
+        if (selectedStampId === stampId) {
+          selectedStampId = stampPresets.length ? stampPresets[Math.max(0, idx - 1)].id : null;
+        }
+        renderStampBar();
+        statusMsg.textContent = "記号「" + removed.name + "」を削除しました";
       }
 
       function renderStampBar() {
         const listEl = document.getElementById("stamp-list");
         listEl.innerHTML = "";
+
         stampPresets.forEach(function (st) {
           const btn = document.createElement("button");
           btn.type = "button";
-          btn.className = "stamp-btn" + (st.id === selectedStampId ? " active" : "");
+          btn.dataset.stampId = st.id;
+          btn.className =
+            "stamp-btn" +
+            (st.id === selectedStampId ? " active" : "") +
+            (st.id === draggingStampId ? " dragging" : "");
           btn.textContent = st.name;
+
           btn.addEventListener("click", function () {
+            if (suppressNextStampClick) {
+              suppressNextStampClick = false;
+              return;
+            }
             selectedStampId = st.id;
             renderStampBar();
-            statusMsg.textContent = "スタンプ選択中「" + st.name + "」：配置したい位置をタップしてください";
+            statusMsg.textContent = "スタンプ選択中「" + st.name + "」：図面をタップして配置（長押しで並び替え・削除）";
           });
+
+          function beginPress(clientX, clientY) {
+            clearTimeout(longPressTimer);
+            longPressTimer = setTimeout(function () {
+              draggingStampId = st.id;
+              selectedStampId = st.id;
+              suppressNextStampClick = true;
+              renderStampBar();
+              statusMsg.textContent = "「" + st.name + "」移動中：左右へ動かして順番変更、🗑️ゴミ箱へ動かして削除";
+              if (navigator.vibrate) {
+                try { navigator.vibrate(25); } catch (_) {}
+              }
+            }, 450);
+          }
+
+          function movePress(clientX, clientY) {
+            if (!draggingStampId) return;
+            const overTrash = isOverTrash(clientX, clientY);
+            trashBtn.classList.toggle("drag-over", overTrash);
+            if (overTrash) return;
+
+            const buttons = Array.from(listEl.querySelectorAll(".stamp-btn"));
+            for (let i = 0; i < buttons.length; i++) {
+              const targetBtn = buttons[i];
+              const targetId = targetBtn.dataset.stampId;
+              if (!targetId || targetId === draggingStampId) continue;
+              const r = targetBtn.getBoundingClientRect();
+              if (clientX >= r.left && clientX <= r.right && clientY >= r.top - 12 && clientY <= r.bottom + 12) {
+                const fromIdx = stampPresets.findIndex(function (x) { return x.id === draggingStampId; });
+                const toIdx = stampPresets.findIndex(function (x) { return x.id === targetId; });
+                if (fromIdx !== -1 && toIdx !== -1 && fromIdx !== toIdx) {
+                  const moved = stampPresets.splice(fromIdx, 1)[0];
+                  stampPresets.splice(toIdx, 0, moved);
+                  renderStampBar();
+                }
+                break;
+              }
+            }
+          }
+
+          function endPress(clientX, clientY) {
+            clearTimeout(longPressTimer);
+            longPressTimer = null;
+            if (!draggingStampId) return;
+            const idToHandle = draggingStampId;
+            draggingStampId = null;
+            const shouldDelete = clientX !== undefined && clientY !== undefined && isOverTrash(clientX, clientY);
+            trashBtn.classList.remove("drag-over");
+            if (shouldDelete) {
+              deleteStampById(idToHandle);
+            } else {
+              renderStampBar();
+              statusMsg.textContent = "記号の並び順を更新しました";
+            }
+          }
+
+          btn.addEventListener("touchstart", function (e) {
+            if (!e.touches || !e.touches.length) return;
+            const t = e.touches[0];
+            beginPress(t.clientX, t.clientY);
+          }, { passive: true });
+
+          btn.addEventListener("touchmove", function (e) {
+            if (!draggingStampId) {
+              clearTimeout(longPressTimer);
+              return;
+            }
+            if (!e.touches || !e.touches.length) return;
+            e.preventDefault();
+            const t = e.touches[0];
+            movePress(t.clientX, t.clientY);
+          }, { passive: false });
+
+          btn.addEventListener("touchend", function (e) {
+            const t = e.changedTouches && e.changedTouches[0];
+            endPress(t ? t.clientX : undefined, t ? t.clientY : undefined);
+          });
+
+          btn.addEventListener("touchcancel", function () {
+            endPress();
+          });
+
+          btn.addEventListener("mousedown", function (e) {
+            if (e.button !== 0) return;
+            beginPress(e.clientX, e.clientY);
+          });
+
+          window.addEventListener("mousemove", function (e) {
+            if (draggingStampId) movePress(e.clientX, e.clientY);
+          });
+
+          window.addEventListener("mouseup", function (e) {
+            if (draggingStampId) endPress(e.clientX, e.clientY);
+          });
+
           listEl.appendChild(btn);
         });
       }
 
       renderStampBar();
+
+      trashBtn.addEventListener("click", function () {
+        if (!selectedStampId) return;
+        deleteStampById(selectedStampId);
+      });
 
       function getLogicalSize(page) {
         const p = page || currentPage();
@@ -666,7 +839,6 @@
         return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
       }
 
-      // 手書き図形の自動認識
       function recognizeShape(points, color, width) {
         if (!autoShape || !points || points.length < 5) {
           return { type: "stroke", points: points || [], color: color, width: width };
@@ -760,7 +932,6 @@
         return { type: "stroke", points: points, color: color, width: width };
       }
 
-      // 消しゴム当たり判定（ERASER_RADIUS を小さく調整）
       function hitTestElement(el, pos) {
         const r = ERASER_RADIUS;
         if (el.type === "stroke") {
@@ -799,8 +970,8 @@
           return Math.hypot(pos.x - mx, pos.y - my) <= r + 18;
         }
         if (el.type === "stamp") {
-          const halfW = (el.w || 64) / 2;
-          const halfH = (el.h || 44) / 2;
+          const halfW = (el.w || 68) / 2;
+          const halfH = (el.h || 46) / 2;
           return (
             pos.x >= el.x - halfW - r &&
             pos.x <= el.x + halfW + r &&
@@ -842,6 +1013,7 @@
 
       function placeStampAt(pos) {
         const st = getSelectedStamp();
+        if (!st) return;
         const p = currentPage();
         pushHistory(p);
         p.elements.push({
@@ -852,7 +1024,6 @@
           h: 46,
           name: st.name,
           kind: st.kind,
-          sub: st.sub || "",
           color: penColor
         });
         render();
@@ -877,7 +1048,7 @@
         targetCtx.restore();
       }
 
-      // 設備図面記号描画（受信機・総合盤・感知器系・分電盤）
+      // 設備図面記号描画
       function drawStamp(targetCtx, el, isPreview) {
         const x = el.x;
         const y = el.y;
@@ -892,7 +1063,6 @@
         targetCtx.lineWidth = 2.4;
 
         if (el.kind === "receiver") {
-          // 受信機：横長長方形に対角線と横線
           const rw = w;
           const rh = h * 0.78;
           const rx = x - rw / 2;
@@ -908,7 +1078,6 @@
           targetCtx.lineTo(rx + rw, y);
           targetCtx.stroke();
         } else if (el.kind === "general_panel") {
-          // 総合盤・複合盤：二重枠/連結盤表記
           const rw = w * 1.15;
           const rh = h * 0.82;
           const rx = x - rw / 2;
@@ -922,20 +1091,38 @@
           targetCtx.moveTo(rx + (rw * 2) / 3, ry + 4);
           targetCtx.lineTo(rx + (rw * 2) / 3, ry + rh - 4);
           targetCtx.stroke();
-        } else if (el.kind === "detector_heat") {
-          // 感知器系（定温・差動）：半円＋横線
+        } else if (el.kind === "detector_diff") {
+          // 感知器(差動)：180度回転した半円（下向き弧＋上側直径線）
           const rad = 22;
+          const cy = y - 6;
           targetCtx.beginPath();
-          targetCtx.arc(x, y + 6, rad, Math.PI, 0, false);
+          targetCtx.arc(x, cy, rad, 0, Math.PI, false);
+          targetCtx.closePath();
+          targetCtx.fill();
+          targetCtx.stroke();
+        } else if (el.kind === "detector_fixed") {
+          // 感知器(定温)：半円に縦棒
+          const rad = 22;
+          const cy = y + 6;
+          targetCtx.beginPath();
+          targetCtx.arc(x, cy, rad, Math.PI, 0, false);
           targetCtx.closePath();
           targetCtx.fill();
           targetCtx.stroke();
           targetCtx.beginPath();
-          targetCtx.moveTo(x - rad + 4, y - 4);
-          targetCtx.lineTo(x + rad - 4, y - 4);
+          targetCtx.moveTo(x, cy - rad);
+          targetCtx.lineTo(x, cy);
+          targetCtx.stroke();
+        } else if (el.kind === "detector_tokuroku") {
+          // 感知器(特六)：半円のみ
+          const rad = 22;
+          const cy = y + 6;
+          targetCtx.beginPath();
+          targetCtx.arc(x, cy, rad, Math.PI, 0, false);
+          targetCtx.closePath();
+          targetCtx.fill();
           targetCtx.stroke();
         } else if (el.kind === "detector_smoke") {
-          // 感知器系（煙）：四角の中に S
           const sw = 38;
           const sh = 38;
           targetCtx.fillRect(x - sw / 2, y - sh / 2, sw, sh);
@@ -946,7 +1133,6 @@
           targetCtx.textBaseline = "middle";
           targetCtx.fillText("S", x, y + 1);
         } else {
-          // 分電盤：盤枠＋斜線/仕切り
           const pw = 44;
           const ph = 40;
           const px = x - pw / 2;
@@ -959,9 +1145,8 @@
           targetCtx.stroke();
         }
 
-        // 名称ラベルを記号下に表示
         targetCtx.fillStyle = col;
-        targetCtx.font = "bold 16px sans-serif";
+        targetCtx.font = "bold 15px sans-serif";
         targetCtx.textAlign = "center";
         targetCtx.textBaseline = "top";
         targetCtx.fillText(el.name || "", x, y + h / 2 + 2);
@@ -1103,15 +1288,17 @@
 
         if (tool === "stamp" && stampHoverPos) {
           const st = getSelectedStamp();
-          drawStamp(ctx, {
-            x: stampHoverPos.x,
-            y: stampHoverPos.y,
-            w: 68,
-            h: 46,
-            name: st.name,
-            kind: st.kind,
-            color: penColor
-          }, true);
+          if (st) {
+            drawStamp(ctx, {
+              x: stampHoverPos.x,
+              y: stampHoverPos.y,
+              w: 68,
+              h: 46,
+              name: st.name,
+              kind: st.kind,
+              color: penColor
+            }, true);
+          }
         }
 
         if (tool === "eraser" && eraserPos) {
@@ -1295,7 +1482,7 @@
         handleEnd("pointer");
       });
 
-      // 寸法入力モーダル（数字キーボード優先）
+      // 寸法入力モーダル
       const dimModal = document.getElementById("dim-modal");
       const dimInput = document.getElementById("dim-input");
 
@@ -1382,8 +1569,7 @@
         const newStamp = {
           id: "st_" + Date.now() + "_" + Math.floor(Math.random() * 1000),
           name: name,
-          kind: kind,
-          sub: name
+          kind: kind
         };
         stampPresets.push(newStamp);
         selectedStampId = newStamp.id;
@@ -1407,7 +1593,7 @@
         if (tool === "pen") {
           statusMsg.textContent = "ペンモード：丸・四角・直線を描くと自動で図面化します";
         } else if (tool === "stamp") {
-          statusMsg.textContent = "記号スタンプモード：記号を選んで図面をタップすると配置されます";
+          statusMsg.textContent = "記号スタンプモード：タップで配置／タブ長押しで順番変更・🗑️ゴミ箱で削除";
         } else if (tool === "dim") {
           statusMsg.textContent = "寸法線モード：ドラッグで両矢印を引き、数字を入力します";
         } else if (tool === "eraser") {
