@@ -563,12 +563,13 @@
         return;
       }
 
+      // 初期状態で180度入れ替えるスタンプは flipped: true に設定
       let stampPresets = [
         { id: "r_main", name: "受信機", kind: "receiver", flipped: false },
         { id: "g_panel", name: "総合盤", kind: "general_panel", flipped: false },
-        { id: "d_diff", name: "感知器(差動)", kind: "detector_diff", flipped: false },
-        { id: "d_fixed", name: "感知器(定温)", kind: "detector_fixed", flipped: false },
-        { id: "d_tokuroku", name: "感知器(特六)", kind: "detector_tokuroku", flipped: false },
+        { id: "d_diff", name: "感知器(差動)", kind: "detector_diff", flipped: true },
+        { id: "d_fixed", name: "感知器(定温)", kind: "detector_fixed", flipped: true },
+        { id: "d_tokuroku", name: "感知器(特六)", kind: "detector_tokuroku", flipped: true },
         { id: "d_smoke", name: "感知器(煙)", kind: "detector_smoke", flipped: false },
         { id: "p_dist", name: "分電盤", kind: "dist_board", flipped: false }
       ];
