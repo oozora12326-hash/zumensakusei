@@ -62,20 +62,51 @@
       z-index: 9;
     }
 
-    .stamp-bar {
+    .stamp-panel {
       background: #232932;
       border-bottom: 1px solid var(--border);
       padding: 6px 10px;
       display: flex;
-      align-items: center;
+      flex-direction: column;
       gap: 6px;
-      overflow-x: auto;
       flex-shrink: 0;
       z-index: 8;
     }
 
-    .stamp-bar.hidden {
+    .stamp-panel.hidden {
       display: none;
+    }
+
+    .stamp-cat-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      overflow-x: auto;
+    }
+
+    .cat-btn {
+      background: #2d3540;
+      border: 1px solid #475569;
+      color: #cbd5e1;
+      font-size: 12px;
+      padding: 4px 10px;
+      min-height: 28px;
+      border-radius: 999px;
+      white-space: nowrap;
+    }
+
+    .cat-btn.active {
+      background: #0ea5e9;
+      border-color: #7dd3fc;
+      color: #fff;
+      font-weight: 700;
+    }
+
+    .stamp-bar {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      overflow-x: auto;
     }
 
     .stamp-label-hdr {
@@ -371,7 +402,7 @@
         height: auto !important;
         overflow: visible !important;
       }
-      .toolbar, .subbar, .stamp-bar, .workspace, .statusbar, .modal-backdrop {
+      .toolbar, .subbar, .stamp-panel, .workspace, .statusbar, .modal-backdrop {
         display: none !important;
       }
       #print-container {
@@ -432,13 +463,22 @@
     </div>
   </div>
 
-  <!-- 設備図面記号スタンプバー -->
-  <div class="stamp-bar hidden" id="stamp-bar">
-    <span class="stamp-label-hdr">設備記号:</span>
-    <div id="stamp-list" style="display:flex;align-items:center;gap:6px;"></div>
-    <button type="button" id="btn-flip-stamp" class="stamp-flip-btn" title="選択中の記号を上下180度回転">🔄 上下反転</button>
-    <button type="button" id="btn-add-stamp" class="stamp-add-btn">＋ 記号保存</button>
-    <button type="button" id="btn-stamp-trash" class="stamp-trash-btn" title="選択中の記号を削除、または長押しドラッグでここへ移動して削除">🗑️ ゴミ箱</button>
+  <!-- 設備図面記号スタンプパネル（4カテゴリ切替 + 記号一覧） -->
+  <div class="stamp-panel hidden" id="stamp-panel">
+    <div class="stamp-cat-row" id="stamp-cat-row">
+      <span class="stamp-label-hdr">区分:</span>
+      <button type="button" class="cat-btn active" data-cat="architectural">建築設備</button>
+      <button type="button" class="cat-btn" data-cat="fire">消防設備</button>
+      <button type="button" class="cat-btn" data-cat="water">水道</button>
+      <button type="button" class="cat-btn" data-cat="electrical">電気</button>
+    </div>
+    <div class="stamp-bar" id="stamp-bar">
+      <span class="stamp-label-hdr">記号:</span>
+      <div id="stamp-list" style="display:flex;align-items:center;gap:6px;"></div>
+      <button type="button" id="btn-flip-stamp" class="stamp-flip-btn" title="選択中の記号を上下180度回転">🔄 上下反転</button>
+      <button type="button" id="btn-add-stamp" class="stamp-add-btn">＋ 記号保存</button>
+      <button type="button" id="btn-stamp-trash" class="stamp-trash-btn" title="選択中の記号を削除、または長押しドラッグでここへ移動して削除">🗑️ ゴミ箱</button>
+    </div>
   </div>
 
   <div class="subbar">
@@ -515,18 +555,30 @@
   <div class="modal-backdrop" id="stamp-save-modal">
     <div class="modal-box">
       <h3>図面記号を保存</h3>
+      <label style="display:block;font-size:12px;color:#cbd5e1;margin-bottom:4px;">区分</label>
+      <select id="custom-stamp-cat" class="modal-select">
+        <option value="architectural">建築設備</option>
+        <option value="fire">消防設備</option>
+        <option value="water">水道</option>
+        <option value="electrical">電気</option>
+      </select>
       <label style="display:block;font-size:12px;color:#cbd5e1;margin-bottom:4px;">記号タイプ</label>
       <select id="custom-stamp-kind" class="modal-select">
-        <option value="receiver">受信機系（対角線枠）</option>
-        <option value="general_panel">総合盤・複合盤系（連動盤枠）</option>
-        <option value="detector_diff">感知器(差動)（半円＋横棒・上目）</option>
-        <option value="detector_fixed">感知器(定温)（半円＋縦棒）</option>
-        <option value="detector_tokuroku">感知器(特六)（半円のみ）</option>
-        <option value="detector_smoke">感知器系：煙感知器（四角＋S）</option>
-        <option value="dist_board">分電盤系（盤記号）</option>
+        <option value="door">建築設備：扉（開き戸記号）</option>
+        <option value="general_panel">建築設備：総合盤・複合盤系</option>
+        <option value="receiver">消防設備：受信機系（対角線枠）</option>
+        <option value="detector_diff">消防設備：感知器(差動)（半円＋横棒・上目）</option>
+        <option value="detector_fixed">消防設備：感知器(定温)（半円＋縦棒）</option>
+        <option value="detector_tokuroku">消防設備：感知器(特六)（半円のみ）</option>
+        <option value="detector_smoke">消防設備：煙感知器（四角＋S）</option>
+        <option value="water_faucet">水道：給水栓</option>
+        <option value="water_valve">水道：止水栓</option>
+        <option value="dist_board">電気：分電盤系（盤記号）</option>
+        <option value="elec_outlet">電気：コンセント</option>
+        <option value="elec_light">電気：照明器具</option>
       </select>
       <label style="display:block;font-size:12px;color:#cbd5e1;margin-bottom:4px;">表示ラベル・注記</label>
-      <input type="text" id="custom-stamp-label" class="modal-input" placeholder="例: 副受信機 / 分電盤L1" />
+      <input type="text" id="custom-stamp-label" class="modal-input" placeholder="例: 片開き扉 / 副受信機 / 分電盤L1" />
       <div class="modal-actions">
         <button type="button" id="stamp-save-cancel">キャンセル</button>
         <button type="button" id="stamp-save-ok" class="active">保存</button>
@@ -563,18 +615,38 @@
         return;
       }
 
-      // 初期状態で180度入れ替えるスタンプは flipped: true に設定
+      const CATEGORY_NAMES = {
+        architectural: "建築設備",
+        fire: "消防設備",
+        water: "水道",
+        electrical: "電気"
+      };
+
+      // 福岡県「建物平面図等表示記号」の基準に基づく4区分振り分け + 建築設備「扉」追加
       let stampPresets = [
-        { id: "r_main", name: "受信機", kind: "receiver", flipped: false },
-        { id: "g_panel", name: "総合盤", kind: "general_panel", flipped: false },
-        { id: "d_diff", name: "感知器(差動)", kind: "detector_diff", flipped: true },
-        { id: "d_fixed", name: "感知器(定温)", kind: "detector_fixed", flipped: true },
-        { id: "d_tokuroku", name: "感知器(特六)", kind: "detector_tokuroku", flipped: true },
-        { id: "d_smoke", name: "感知器(煙)", kind: "detector_smoke", flipped: false },
-        { id: "p_dist", name: "分電盤", kind: "dist_board", flipped: false }
+        // 建築設備
+        { id: "a_door", name: "扉", kind: "door", category: "architectural", flipped: false },
+        { id: "g_panel", name: "総合盤", kind: "general_panel", category: "architectural", flipped: false },
+
+        // 消防設備
+        { id: "r_main", name: "受信機", kind: "receiver", category: "fire", flipped: false },
+        { id: "d_diff", name: "感知器(差動)", kind: "detector_diff", category: "fire", flipped: true },
+        { id: "d_fixed", name: "感知器(定温)", kind: "detector_fixed", category: "fire", flipped: true },
+        { id: "d_tokuroku", name: "感知器(特六)", kind: "detector_tokuroku", category: "fire", flipped: true },
+        { id: "d_smoke", name: "感知器(煙)", kind: "detector_smoke", category: "fire", flipped: false },
+
+        // 水道
+        { id: "w_faucet", name: "給水栓", kind: "water_faucet", category: "water", flipped: false },
+        { id: "w_valve", name: "止水栓", kind: "water_valve", category: "water", flipped: false },
+
+        // 電気
+        { id: "p_dist", name: "分電盤", kind: "dist_board", category: "electrical", flipped: false },
+        { id: "e_outlet", name: "コンセント", kind: "elec_outlet", category: "electrical", flipped: false },
+        { id: "e_light", name: "照明", kind: "elec_light", category: "electrical", flipped: false }
       ];
 
-      let selectedStampId = stampPresets[0].id;
+      let selectedCategory = "architectural";
+      let selectedStampId = "a_door";
       let stampHoverPos = null;
 
       let longPressTimer = null;
@@ -619,9 +691,14 @@
         return pages[currentPageIndex];
       }
 
+      function getCategoryStamps() {
+        return stampPresets.filter(function (s) { return s.category === selectedCategory; });
+      }
+
       function getSelectedStamp() {
-        if (!stampPresets.length) return null;
-        return stampPresets.find(function (s) { return s.id === selectedStampId; }) || stampPresets[0];
+        const catStamps = getCategoryStamps();
+        if (!catStamps.length) return null;
+        return catStamps.find(function (s) { return s.id === selectedStampId; }) || catStamps[0];
       }
 
       function isOverTrash(clientX, clientY) {
@@ -642,12 +719,32 @@
         const removed = stampPresets[idx];
         stampPresets.splice(idx, 1);
         if (selectedStampId === stampId) {
-          selectedStampId = stampPresets.length ? stampPresets[Math.max(0, idx - 1)].id : null;
+          const remaining = getCategoryStamps();
+          selectedStampId = remaining.length ? remaining[0].id : null;
         }
         renderStampBar();
         render();
         statusMsg.textContent = "記号「" + removed.name + "」を削除しました";
       }
+
+      document.querySelectorAll(".cat-btn").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          selectedCategory = btn.getAttribute("data-cat") || "architectural";
+          document.querySelectorAll(".cat-btn").forEach(function (b) {
+            b.classList.toggle("active", b.getAttribute("data-cat") === selectedCategory);
+          });
+          const catStamps = getCategoryStamps();
+          if (catStamps.length && !catStamps.some(function (s) { return s.id === selectedStampId; })) {
+            selectedStampId = catStamps[0].id;
+          }
+          renderStampBar();
+          render();
+          const st = getSelectedStamp();
+          statusMsg.textContent =
+            "区分「" + CATEGORY_NAMES[selectedCategory] + "」" +
+            (st ? "（選択中: " + st.name + "）" : "");
+        });
+      });
 
       document.getElementById("btn-flip-stamp").addEventListener("click", function () {
         const st = getSelectedStamp();
@@ -661,8 +758,13 @@
       function renderStampBar() {
         const listEl = document.getElementById("stamp-list");
         listEl.innerHTML = "";
+        const catStamps = getCategoryStamps();
+        const activeStamp = getSelectedStamp();
+        if (activeStamp) {
+          selectedStampId = activeStamp.id;
+        }
 
-        stampPresets.forEach(function (st) {
+        catStamps.forEach(function (st) {
           const btn = document.createElement("button");
           btn.type = "button";
           btn.dataset.stampId = st.id;
@@ -1045,6 +1147,7 @@
           h: 46,
           name: st.name,
           kind: st.kind,
+          category: st.category || selectedCategory,
           flipped: !!st.flipped,
           color: penColor
         });
@@ -1090,7 +1193,29 @@
           targetCtx.scale(1, -1);
         }
 
-        if (el.kind === "receiver") {
+        if (el.kind === "door") {
+          // 建築設備：開き戸（枠線＋扉線＋回転軌跡の円弧）
+          const span = 28;
+          const hx = -span / 2;
+          const hy = 10;
+          targetCtx.beginPath();
+          targetCtx.moveTo(hx, hy - 8);
+          targetCtx.lineTo(hx, hy + 8);
+          targetCtx.moveTo(hx + span, hy - 8);
+          targetCtx.lineTo(hx + span, hy + 8);
+          // 扉（開いた状態）
+          targetCtx.moveTo(hx, hy);
+          targetCtx.lineTo(hx, hy - span);
+          targetCtx.stroke();
+
+          // 回転軌跡の破線円弧
+          targetCtx.save();
+          targetCtx.setLineDash([4, 3]);
+          targetCtx.beginPath();
+          targetCtx.arc(hx, hy, span, -Math.PI / 2, 0, false);
+          targetCtx.stroke();
+          targetCtx.restore();
+        } else if (el.kind === "receiver") {
           const rw = w;
           const rh = h * 0.78;
           const rx = -rw / 2;
@@ -1161,7 +1286,50 @@
           targetCtx.textAlign = "center";
           targetCtx.textBaseline = "middle";
           targetCtx.fillText("S", 0, 1);
+        } else if (el.kind === "water_faucet") {
+          // 水道：給水栓（丸＋塗りつぶしまたは横枝）
+          targetCtx.beginPath();
+          targetCtx.arc(0, 0, 14, 0, Math.PI * 2);
+          targetCtx.fill();
+          targetCtx.stroke();
+          targetCtx.beginPath();
+          targetCtx.moveTo(14, 0);
+          targetCtx.lineTo(24, -6);
+          targetCtx.stroke();
+        } else if (el.kind === "water_valve") {
+          // 水道：止水栓（二等辺三角・蝶ネクタイ型）
+          targetCtx.beginPath();
+          targetCtx.moveTo(-16, -12);
+          targetCtx.lineTo(16, 12);
+          targetCtx.lineTo(16, -12);
+          targetCtx.lineTo(-16, 12);
+          targetCtx.closePath();
+          targetCtx.fill();
+          targetCtx.stroke();
+        } else if (el.kind === "elec_outlet") {
+          // 電気：コンセント（丸＋縦線）
+          targetCtx.beginPath();
+          targetCtx.arc(0, 0, 14, 0, Math.PI * 2);
+          targetCtx.fill();
+          targetCtx.stroke();
+          targetCtx.beginPath();
+          targetCtx.moveTo(0, -14);
+          targetCtx.lineTo(0, 14);
+          targetCtx.stroke();
+        } else if (el.kind === "elec_light") {
+          // 電気：照明（丸＋斜め十字）
+          targetCtx.beginPath();
+          targetCtx.arc(0, 0, 16, 0, Math.PI * 2);
+          targetCtx.fill();
+          targetCtx.stroke();
+          targetCtx.beginPath();
+          targetCtx.moveTo(-11, -11);
+          targetCtx.lineTo(11, 11);
+          targetCtx.moveTo(11, -11);
+          targetCtx.lineTo(-11, 11);
+          targetCtx.stroke();
         } else {
+          // 電気：分電盤系
           const pw = 44;
           const ph = 40;
           const px = -pw / 2;
@@ -1577,10 +1745,12 @@
       });
 
       const stampSaveModal = document.getElementById("stamp-save-modal");
+      const customStampCat = document.getElementById("custom-stamp-cat");
       const customStampKind = document.getElementById("custom-stamp-kind");
       const customStampLabel = document.getElementById("custom-stamp-label");
 
       document.getElementById("btn-add-stamp").addEventListener("click", function () {
+        customStampCat.value = selectedCategory;
         customStampLabel.value = "";
         stampSaveModal.classList.add("open");
         setTimeout(function () {
@@ -1593,22 +1763,28 @@
       });
 
       document.getElementById("stamp-save-ok").addEventListener("click", function () {
-        const kind = customStampKind.value || "receiver";
+        const cat = customStampCat.value || selectedCategory;
+        const kind = customStampKind.value || "door";
         const name = (customStampLabel.value || "").trim() || "カスタム記号";
         const newStamp = {
           id: "st_" + Date.now() + "_" + Math.floor(Math.random() * 1000),
           name: name,
           kind: kind,
+          category: cat,
           flipped: false
         };
         stampPresets.push(newStamp);
+        selectedCategory = cat;
+        document.querySelectorAll(".cat-btn").forEach(function (b) {
+          b.classList.toggle("active", b.getAttribute("data-cat") === selectedCategory);
+        });
         selectedStampId = newStamp.id;
         renderStampBar();
         stampSaveModal.classList.remove("open");
-        statusMsg.textContent = "記号「" + name + "」を保存しました。図面をタップして配置できます";
+        statusMsg.textContent = "「" + CATEGORY_NAMES[cat] + "」に記号「" + name + "」を保存しました";
       });
 
-      const stampBar = document.getElementById("stamp-bar");
+      const stampPanel = document.getElementById("stamp-panel");
       function setTool(nextTool) {
         tool = nextTool;
         eraserPos = null;
@@ -1617,12 +1793,12 @@
         document.getElementById("tool-stamp").classList.toggle("active", tool === "stamp");
         document.getElementById("tool-dim").classList.toggle("active", tool === "dim");
         document.getElementById("tool-eraser").classList.toggle("active", tool === "eraser");
-        stampBar.classList.toggle("hidden", tool !== "stamp");
+        stampPanel.classList.toggle("hidden", tool !== "stamp");
 
         if (tool === "pen") {
           statusMsg.textContent = "ペンモード：丸・四角・直線を描くと自動で図面化します";
         } else if (tool === "stamp") {
-          statusMsg.textContent = "記号スタンプモード：タップで配置／🔄上下反転で180度回転";
+          statusMsg.textContent = "記号スタンプモード：建築設備・消防設備・水道・電気から選択してタップ配置";
         } else if (tool === "dim") {
           statusMsg.textContent = "寸法線モード：ドラッグで両矢印を引き、数字を入力します";
         } else if (tool === "eraser") {
