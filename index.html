@@ -2,2157 +2,837 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>A4図面ホワイトボード（設備記号スタンプ・寸法線・複数ページ対応）</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>A4図面ホワイトボード</title>
   <style>
-    :root {
-      --bg-app: #1e232a;
-      --bg-bar: #282f38;
-      --bg-sub: #323b46;
-      --border: #3f4a58;
-      --text-main: #f3f6fa;
-      --text-muted: #9aa7b8;
-      --accent: #3b82f6;
-      --danger: #ef4444;
-      --success: #10b981;
-    }
-
     * {
       box-sizing: border-box;
-      -webkit-tap-highlight-color: transparent;
     }
 
-    html, body {
+    body {
       margin: 0;
       padding: 0;
-      width: 100%;
-      height: 100%;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
-      background: var(--bg-app);
-      color: var(--text-main);
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-      -webkit-user-select: none;
-      user-select: none;
+      font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
+      background: #1e232a;
+      color: #f3f6fa;
     }
 
-    .toolbar {
-      background: var(--bg-bar);
-      border-bottom: 1px solid var(--border);
-      padding: 6px 10px;
+    .bar {
+      background: #282f38;
+      border-bottom: 1px solid #3f4a58;
+      padding: 8px;
       display: flex;
       flex-wrap: wrap;
-      align-items: center;
       gap: 6px;
-      flex-shrink: 0;
-      z-index: 10;
+      align-items: center;
     }
 
     .subbar {
-      background: var(--bg-sub);
-      border-bottom: 1px solid var(--border);
-      padding: 5px 10px;
+      background: #323b46;
+      border-bottom: 1px solid #3f4a58;
+      padding: 8px;
       display: flex;
       flex-wrap: wrap;
+      gap: 6px;
       align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-      flex-shrink: 0;
-      z-index: 9;
     }
 
     .stamp-panel {
       background: #232932;
-      border-bottom: 1px solid var(--border);
-      padding: 6px 10px;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      flex-shrink: 0;
-      z-index: 8;
+      border-bottom: 1px solid #3f4a58;
+      padding: 8px;
     }
 
     .stamp-panel.hidden {
       display: none;
     }
 
-    .stamp-cat-row {
+    .stamp-row {
       display: flex;
-      align-items: center;
+      flex-wrap: wrap;
       gap: 6px;
-      overflow-x: auto;
-    }
-
-    .cat-btn {
-      background: #2d3540;
-      border: 1px solid #475569;
-      color: #cbd5e1;
-      font-size: 12px;
-      padding: 4px 10px;
-      min-height: 28px;
-      border-radius: 999px;
-      white-space: nowrap;
-    }
-
-    .cat-btn.active {
-      background: #0ea5e9;
-      border-color: #7dd3fc;
-      color: #fff;
-      font-weight: 700;
-    }
-
-    .stamp-bar {
-      display: flex;
       align-items: center;
-      gap: 6px;
-      overflow-x: auto;
+      margin-bottom: 6px;
     }
 
-    .stamp-label-hdr {
-      font-size: 12px;
-      color: var(--text-muted);
-      white-space: nowrap;
-      margin-right: 2px;
-    }
-
-    .stamp-btn {
-      background: #333c48;
-      border: 1px solid #475569;
-      color: #f8fafc;
-      font-size: 12px;
-      padding: 5px 9px;
-      min-height: 32px;
-      border-radius: 6px;
-      white-space: nowrap;
-      touch-action: none;
-    }
-
-    .stamp-btn.active {
-      background: var(--accent);
-      border-color: #93c5fd;
-      color: #fff;
-      font-weight: 600;
-    }
-
-    .stamp-btn.dragging {
-      background: #f59e0b;
-      border-color: #fde68a;
-      color: #111827;
-      font-weight: 700;
-      transform: scale(1.06);
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
-    }
-
-    .stamp-add-btn {
-      background: rgba(16, 185, 129, 0.2);
-      border: 1px dashed #34d399;
-      color: #a7f3d0;
-      font-size: 12px;
-      padding: 5px 9px;
-      min-height: 32px;
-      border-radius: 6px;
-      white-space: nowrap;
-    }
-
-    .stamp-flip-btn {
-      background: rgba(59, 130, 246, 0.2);
-      border: 1px solid #60a5fa;
-      color: #bfdbfe;
-      font-size: 12px;
-      padding: 5px 9px;
-      min-height: 32px;
-      border-radius: 6px;
-      white-space: nowrap;
-    }
-
-    .stamp-trash-btn {
-      background: rgba(239, 68, 68, 0.16);
-      border: 1px solid rgba(239, 68, 68, 0.5);
-      color: #fca5a5;
-      font-size: 12px;
-      padding: 5px 9px;
-      min-height: 32px;
-      border-radius: 6px;
-      white-space: nowrap;
-      margin-left: auto;
-    }
-
-    .stamp-trash-btn.drag-over {
-      background: var(--danger);
-      border-color: #fecaca;
-      color: #fff;
-      transform: scale(1.08);
-    }
-
-    .group {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      background: rgba(0, 0, 0, 0.22);
-      padding: 3px;
-      border-radius: 8px;
+    .stamp-row:last-child {
+      margin-bottom: 0;
     }
 
     button {
-      appearance: none;
-      -webkit-appearance: none;
-      border: 1px solid transparent;
-      background: transparent;
-      color: var(--text-main);
+      border: 1px solid #4b5563;
+      background: #374151;
+      color: #ffffff;
       font-size: 13px;
-      font-weight: 500;
-      padding: 6px 10px;
-      min-height: 36px;
+      padding: 7px 10px;
       border-radius: 6px;
       cursor: pointer;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 4px;
-      white-space: nowrap;
-      touch-action: manipulation;
     }
 
     button.active {
-      background: var(--accent);
-      color: #fff;
-      font-weight: 600;
-    }
-
-    button.toggle-on {
-      background: rgba(16, 185, 129, 0.22);
-      border-color: var(--success);
-      color: #a7f3d0;
-    }
-
-    button.btn-export {
       background: #2563eb;
-      color: #fff;
-      font-weight: 600;
+      border-color: #93c5fd;
+      font-weight: bold;
     }
 
-    button.btn-pdf {
+    button.on {
       background: #059669;
-      color: #fff;
-      font-weight: 600;
-    }
-
-    button.btn-danger {
-      color: #fca5a5;
-    }
-
-    button.btn-danger-solid {
-      background: var(--danger);
-      color: #fff;
-      font-weight: 600;
+      border-color: #6ee7b7;
+      font-weight: bold;
     }
 
     button:disabled {
       opacity: 0.4;
-      cursor: not-allowed;
     }
 
-    .color-dot {
-      width: 24px;
-      height: 24px;
-      min-height: 24px;
-      border-radius: 50%;
-      border: 2px solid rgba(255, 255, 255, 0.4);
+    .color-btn {
+      width: 26px;
+      height: 26px;
       padding: 0;
+      border-radius: 50%;
+      border: 2px solid #cbd5e1;
     }
 
-    .color-dot.active {
-      border-color: #fff;
-      box-shadow: 0 0 0 2px var(--accent);
-    }
-
-    .page-indicator, .zoom-indicator {
-      font-size: 13px;
-      font-weight: 600;
-      padding: 0 6px;
-      color: #e2e8f0;
-      white-space: nowrap;
+    .color-btn.active {
+      border-color: #ffffff;
+      box-shadow: 0 0 0 2px #3b82f6;
     }
 
     .workspace {
-      flex: 1;
-      min-height: 160px;
-      display: flex;
-      align-items: flex-start;
-      justify-content: center;
       padding: 12px;
       overflow: auto;
-      position: relative;
-      touch-action: pan-x pan-y;
+      text-align: center;
     }
 
-    .paper-wrapper {
-      position: relative;
+    .paper {
+      display: inline-block;
       background: #ffffff;
-      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55);
-      border-radius: 2px;
-      overflow: hidden;
-      flex-shrink: 0;
-      margin: auto;
-      touch-action: none;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+      line-height: 0;
     }
 
     canvas {
       display: block;
-      width: 100%;
-      height: 100%;
+      background: #ffffff;
       touch-action: none;
     }
 
-    .modal-backdrop {
-      position: fixed;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.62);
-      display: none;
-      align-items: center;
-      justify-content: center;
-      z-index: 100;
-      padding: 16px;
-    }
-
-    .modal-backdrop.open {
-      display: flex;
-    }
-
-    .modal-box {
-      background: #282f38;
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 16px;
-      width: 100%;
-      max-width: 350px;
-    }
-
-    .modal-box h3 {
-      margin: 0 0 10px 0;
-      font-size: 15px;
-    }
-
-    .modal-box p {
-      margin: 0 0 14px 0;
-      font-size: 13px;
+    .status {
+      background: #181c22;
+      border-top: 1px solid #3f4a58;
+      padding: 8px 12px;
+      font-size: 12px;
       color: #cbd5e1;
-      line-height: 1.5;
     }
 
-    .modal-input {
-      width: 100%;
-      padding: 10px 12px;
-      font-size: 18px;
-      border-radius: 8px;
-      border: 1px solid #4b5563;
-      background: #111827;
-      color: #fff;
-      margin-bottom: 10px;
-    }
-
-    .modal-select {
-      width: 100%;
-      padding: 8px 10px;
-      font-size: 14px;
-      border-radius: 8px;
-      border: 1px solid #4b5563;
-      background: #111827;
-      color: #fff;
-      margin-bottom: 12px;
-    }
-
-    .unit-chips {
-      display: flex;
-      gap: 6px;
-      margin-bottom: 14px;
-    }
-
-    .unit-chip {
-      background: #374151;
-      font-size: 12px;
-      padding: 5px 10px;
-      min-height: 30px;
-    }
-
-    .modal-actions {
-      display: flex;
-      justify-content: flex-end;
-      gap: 8px;
-    }
-
-    .statusbar {
-      background: var(--bg-bar);
-      border-top: 1px solid var(--border);
-      padding: 5px 12px;
-      font-size: 12px;
-      color: var(--text-muted);
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: space-between;
-      gap: 6px;
-      flex-shrink: 0;
-    }
-
-    #print-container {
+    #print-area {
       display: none;
     }
 
     @media print {
-      body {
-        background: #fff !important;
-        height: auto !important;
-        overflow: visible !important;
-      }
-      .toolbar, .subbar, .stamp-panel, .workspace, .statusbar, .modal-backdrop {
+      body > *:not(#print-area) {
         display: none !important;
       }
-      #print-container {
+      #print-area {
         display: block !important;
       }
-      .print-page {
+      .p-page {
         page-break-after: always;
-        break-after: page;
-        width: 100%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
+        text-align: center;
       }
-      .print-page:last-child {
-        page-break-after: auto;
-        break-after: auto;
-      }
-      .print-page img {
+      .p-page img {
         max-width: 100%;
-        max-height: 100vh;
-        object-fit: contain;
+        height: auto;
       }
     }
   </style>
 </head>
 <body>
+  <div class="bar">
+    <button type="button" id="t-pen" class="active">ペン</button>
+    <button type="button" id="t-stamp">記号スタンプ</button>
+    <button type="button" id="t-dim">寸法線</button>
+    <button type="button" id="t-eraser">消しゴム</button>
+    <button type="button" id="t-shape" class="on">図形認識: ON</button>
 
-  <div class="toolbar">
-    <div class="group">
-      <button type="button" id="tool-pen" class="active">✏️ ペン</button>
-      <button type="button" id="tool-stamp">🏷️ 記号スタンプ</button>
-      <button type="button" id="tool-dim">↔️ 寸法線</button>
-      <button type="button" id="tool-eraser">🧹 消しゴム</button>
-    </div>
+    <button type="button" class="color-btn active" data-c="#111827" style="background:#111827;"></button>
+    <button type="button" class="color-btn" data-c="#dc2626" style="background:#dc2626;"></button>
+    <button type="button" class="color-btn" data-c="#2563eb" style="background:#2563eb;"></button>
+    <button type="button" class="color-btn" data-c="#059669" style="background:#059669;"></button>
 
-    <div class="group">
-      <button type="button" id="toggle-shape" class="toggle-on">✨ 図形認識: ON</button>
-    </div>
+    <button type="button" class="w-btn" data-w="1.5">極細</button>
+    <button type="button" class="w-btn active" data-w="2.5">細</button>
+    <button type="button" class="w-btn" data-w="5">中</button>
+    <button type="button" class="w-btn" data-w="8">太</button>
 
-    <div class="group">
-      <button type="button" class="color-dot active" data-color="#111827" style="background:#111827;" aria-label="黒"></button>
-      <button type="button" class="color-dot" data-color="#dc2626" style="background:#dc2626;" aria-label="赤"></button>
-      <button type="button" class="color-dot" data-color="#2563eb" style="background:#2563eb;" aria-label="青"></button>
-      <button type="button" class="color-dot" data-color="#059669" style="background:#059669;" aria-label="緑"></button>
-    </div>
-
-    <div class="group">
-      <button type="button" class="width-btn" data-width="1.2">極細</button>
-      <button type="button" class="width-btn active" data-width="2.4">細</button>
-      <button type="button" class="width-btn" data-width="4.5">中</button>
-      <button type="button" class="width-btn" data-width="7.5">太</button>
-    </div>
-
-    <div class="group">
-      <button type="button" id="btn-undo" disabled>↩️ 戻す</button>
-      <button type="button" id="btn-redo" disabled>↪️ やり直し</button>
-      <button type="button" id="btn-clear" class="btn-danger">🗑️ 全消去</button>
-    </div>
+    <button type="button" id="b-undo" disabled>戻す</button>
+    <button type="button" id="b-redo" disabled>やり直し</button>
+    <button type="button" id="b-clear">全消去</button>
   </div>
 
-  <!-- 設備図面記号スタンプパネル -->
-  <div class="stamp-panel hidden" id="stamp-panel">
-    <div class="stamp-cat-row" id="stamp-cat-row">
-      <span class="stamp-label-hdr">区分:</span>
+  <div id="stamp-panel" class="stamp-panel hidden">
+    <div class="stamp-row">
+      <span>区分:</span>
       <button type="button" class="cat-btn active" data-cat="architectural">建築設備</button>
       <button type="button" class="cat-btn" data-cat="fire">消防設備</button>
       <button type="button" class="cat-btn" data-cat="water">水道</button>
       <button type="button" class="cat-btn" data-cat="electrical">電気</button>
     </div>
-    <div class="stamp-bar" id="stamp-bar">
-      <span class="stamp-label-hdr">記号:</span>
-      <div id="stamp-list" style="display:flex;align-items:center;gap:6px;"></div>
-      <button type="button" id="btn-flip-stamp" class="stamp-flip-btn" title="選択中の記号を上下180度回転">🔄 上下反転</button>
-      <button type="button" id="btn-add-stamp" class="stamp-add-btn">＋ 記号保存</button>
-      <button type="button" id="btn-stamp-trash" class="stamp-trash-btn" title="選択中の記号を削除、または長押しドラッグでここへ移動して削除">🗑️ ゴミ箱</button>
+    <div class="stamp-row" id="stamp-items"></div>
+    <div class="stamp-row">
+      <button type="button" id="b-flip">上下180度反転</button>
+      <button type="button" id="b-add-stamp">+ 記号追加</button>
+      <button type="button" id="b-del-stamp">選択記号を削除</button>
     </div>
   </div>
 
   <div class="subbar">
-    <div class="group">
-      <button type="button" id="page-prev">◀</button>
-      <span id="page-label" class="page-indicator">1 / 1 ページ</span>
-      <button type="button" id="page-next">▶</button>
-      <button type="button" id="page-add">＋ 新規</button>
-      <button type="button" id="page-dup">📋 複製</button>
-      <button type="button" id="page-del" class="btn-danger">削除</button>
-    </div>
+    <button type="button" id="p-prev" disabled>◀</button>
+    <span id="p-label">1 / 1 ページ</span>
+    <button type="button" id="p-next" disabled>▶</button>
+    <button type="button" id="p-add">+ 新規</button>
+    <button type="button" id="p-dup">複製</button>
+    <button type="button" id="p-del" disabled>削除</button>
 
-    <div class="group">
-      <button type="button" id="zoom-out" title="縮小">🔍−</button>
-      <span id="zoom-label" class="zoom-indicator">100%</span>
-      <button type="button" id="zoom-in" title="拡大">🔍＋</button>
-      <button type="button" id="zoom-reset" title="表示フィット">リセット</button>
-    </div>
+    <button type="button" id="z-out">縮小 -</button>
+    <span id="z-label">100%</span>
+    <button type="button" id="z-in">拡大 +</button>
+    <button type="button" id="z-reset">リセット</button>
 
-    <div class="group">
-      <button type="button" id="toggle-orient">📄 A4縦</button>
-      <button type="button" id="toggle-grid" class="toggle-on">＃ 方眼: ON</button>
-      <button type="button" id="toggle-grid-export" class="toggle-on">出力方眼: ON</button>
-    </div>
+    <button type="button" id="b-orient">A4縦</button>
+    <button type="button" id="b-grid" class="on">方眼: ON</button>
+    <button type="button" id="b-grid-exp" class="on">出力方眼: ON</button>
 
-    <div class="group">
-      <button type="button" id="export-png" class="btn-export">🖼️ PNG保存</button>
-      <button type="button" id="export-pdf" class="btn-pdf">📑 PDF出力</button>
-    </div>
+    <button type="button" id="b-png">PNG保存</button>
+    <button type="button" id="b-pdf">PDF出力</button>
   </div>
 
   <div class="workspace" id="workspace">
-    <div class="paper-wrapper" id="paper-wrapper">
-      <canvas id="board"></canvas>
+    <div class="paper" id="paper">
+      <canvas id="cv"></canvas>
     </div>
   </div>
 
-  <div class="statusbar">
-    <span id="status-msg">ペンモード：丸・四角・直線を描くと自動で図面化します</span>
-    <span id="debug-info">準備完了</span>
-  </div>
-
-  <!-- 寸法テキスト入力モーダル -->
-  <div class="modal-backdrop" id="dim-modal">
-    <div class="modal-box">
-      <h3>寸法数値を入力</h3>
-      <input
-        type="text"
-        inputmode="decimal"
-        pattern="[0-9.]*"
-        id="dim-input"
-        class="modal-input"
-        placeholder="例: 1200"
-      />
-      <div class="unit-chips">
-        <button type="button" class="unit-chip" data-unit="mm">+ mm</button>
-        <button type="button" class="unit-chip" data-unit="cm">+ cm</button>
-        <button type="button" class="unit-chip" data-unit="m">+ m</button>
-        <button type="button" class="unit-chip" data-unit="φ">φ</button>
-      </div>
-      <div class="modal-actions">
-        <button type="button" id="dim-cancel">キャンセル</button>
-        <button type="button" id="dim-ok" class="active">確定</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- 全消去確認モーダル -->
-  <div class="modal-backdrop" id="clear-modal">
-    <div class="modal-box">
-      <h3>現在のページを全消去しますか？</h3>
-      <p>このページの線・図形・寸法線・設備記号がすべて消去されます（「↩️ 戻す」で直前に戻すことも可能です）。</p>
-      <div class="modal-actions">
-        <button type="button" id="clear-cancel">キャンセル</button>
-        <button type="button" id="clear-confirm" class="btn-danger-solid">全消去する</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- ユーザー記号保存モーダル -->
-  <div class="modal-backdrop" id="stamp-save-modal">
-    <div class="modal-box">
-      <h3>図面記号を保存</h3>
-      <label style="display:block;font-size:12px;color:#cbd5e1;margin-bottom:4px;">区分</label>
-      <select id="custom-stamp-cat" class="modal-select">
-        <option value="architectural">建築設備</option>
-        <option value="fire">消防設備</option>
-        <option value="water">水道</option>
-        <option value="electrical">電気</option>
-      </select>
-      <label style="display:block;font-size:12px;color:#cbd5e1;margin-bottom:4px;">記号タイプ</label>
-      <select id="custom-stamp-kind" class="modal-select">
-        <option value="door">建築設備：扉（開き戸記号）</option>
-        <option value="general_panel">建築設備：総合盤・複合盤系</option>
-        <option value="receiver">消防設備：受信機系（対角線枠）</option>
-        <option value="detector_diff">消防設備：感知器(差動)（半円＋横棒・上目）</option>
-        <option value="detector_fixed">消防設備：感知器(定温)（半円＋縦棒）</option>
-        <option value="detector_tokuroku">消防設備：感知器(特六)（半円のみ）</option>
-        <option value="detector_smoke">消防設備：煙感知器（四角＋S）</option>
-        <option value="water_faucet">水道：給水栓</option>
-        <option value="water_valve">水道：止水栓</option>
-        <option value="dist_board">電気：分電盤系（盤記号）</option>
-        <option value="elec_outlet">電気：コンセント</option>
-        <option value="elec_light">電気：照明器具</option>
-      </select>
-      <label style="display:block;font-size:12px;color:#cbd5e1;margin-bottom:4px;">表示ラベル・注記</label>
-      <input type="text" id="custom-stamp-label" class="modal-input" placeholder="例: 片開き扉 / 副受信機 / 分電盤L1" />
-      <div class="modal-actions">
-        <button type="button" id="stamp-save-cancel">キャンセル</button>
-        <button type="button" id="stamp-save-ok" class="active">保存</button>
-      </div>
-    </div>
-  </div>
-
-  <div id="print-container"></div>
+  <div class="status" id="status">起動中...</div>
+  <div id="print-area"></div>
 
   <script>
     (function () {
-      const statusMsg = document.getElementById("status-msg");
-      const debugInfo = document.getElementById("debug-info");
-
-      function setStatus(msg) {
-        if (statusMsg) statusMsg.textContent = msg;
-      }
-
-      function logStatus(msg) {
-        if (debugInfo) debugInfo.textContent = msg;
-      }
-
-      window.addEventListener("error", function (ev) {
-        logStatus("エラー: " + (ev.message || "実行エラー"));
-      });
-
-      const A4_SHORT = 1240;
-      const A4_LONG = 1754;
-      const ERASER_RADIUS = 11;
-      const MIN_ZOOM = 0.5;
-      const MAX_ZOOM = 3.0;
-      const ZOOM_STEP = 0.25;
-
-      const canvas = document.getElementById("board");
-      const ctx = canvas && canvas.getContext ? canvas.getContext("2d") : null;
+      const statusEl = document.getElementById("status");
+      const cv = document.getElementById("cv");
+      const ctx = cv.getContext("2d");
       const workspace = document.getElementById("workspace");
-      const paperWrapper = document.getElementById("paper-wrapper");
-      const listEl = document.getElementById("stamp-list");
-      const trashBtn = document.getElementById("btn-stamp-trash");
+      const stampPanel = document.getElementById("stamp-panel");
+      const stampItemsEl = document.getElementById("stamp-items");
 
-      if (!canvas || !ctx || !workspace || !paperWrapper || !listEl) {
-        logStatus("要素初期化失敗");
-        return;
-      }
-
-      let zoomLevel = 1.0;
-
-      const CATEGORY_NAMES = {
-        architectural: "建築設備",
-        fire: "消防設備",
-        water: "水道",
-        electrical: "電気"
-      };
-
-      let stampPresets = [
-        { id: "a_door", name: "扉", kind: "door", category: "architectural", flipped: false },
-        { id: "g_panel", name: "総合盤", kind: "general_panel", category: "architectural", flipped: false },
-        { id: "r_main", name: "受信機", kind: "receiver", category: "fire", flipped: false },
-        { id: "d_diff", name: "感知器(差動)", kind: "detector_diff", category: "fire", flipped: true },
-        { id: "d_fixed", name: "感知器(定温)", kind: "detector_fixed", category: "fire", flipped: true },
-        { id: "d_tokuroku", name: "感知器(特六)", kind: "detector_tokuroku", category: "fire", flipped: true },
-        { id: "d_smoke", name: "感知器(煙)", kind: "detector_smoke", category: "fire", flipped: false },
-        { id: "w_faucet", name: "給水栓", kind: "water_faucet", category: "water", flipped: false },
-        { id: "w_valve", name: "止水栓", kind: "water_valve", category: "water", flipped: false },
-        { id: "p_dist", name: "分電盤", kind: "dist_board", category: "electrical", flipped: false },
-        { id: "e_outlet", name: "コンセント", kind: "elec_outlet", category: "electrical", flipped: false },
-        { id: "e_light", name: "照明", kind: "elec_light", category: "electrical", flipped: false }
-      ];
-
-      let selectedCategory = "architectural";
-      let selectedStampId = "a_door";
-      let stampHoverPos = null;
-
-      let longPressTimer = null;
-      let draggingStampId = null;
-      let suppressNextStampClick = false;
+      const A4_S = 1240;
+      const A4_L = 1754;
 
       let tool = "pen";
       let autoShape = true;
-      let penColor = "#111827";
-      let penWidth = 2.4;
+      let color = "#111827";
+      let width = 2.5;
       let showGrid = true;
-      let includeGridOnExport = true;
+      let exportGrid = true;
+      let zoom = 1.0;
 
-      function cloneElements(els) {
-        return JSON.parse(JSON.stringify(els || []));
+      let cat = "architectural";
+      let stamps = [
+        { id: "s1", name: "扉", kind: "door", cat: "architectural", flipped: false },
+        { id: "s2", name: "総合盤", kind: "panel", cat: "architectural", flipped: false },
+        { id: "s3", name: "受信機", kind: "receiver", cat: "fire", flipped: false },
+        { id: "s4", name: "感知器(差動)", kind: "diff", cat: "fire", flipped: true },
+        { id: "s5", name: "感知器(定温)", kind: "fixed", cat: "fire", flipped: true },
+        { id: "s6", name: "感知器(特六)", kind: "tokuroku", cat: "fire", flipped: true },
+        { id: "s7", name: "給水栓", kind: "faucet", cat: "water", flipped: false },
+        { id: "s8", name: "止水栓", kind: "valve", cat: "water", flipped: false },
+        { id: "s9", name: "分電盤", kind: "panel", cat: "electrical", flipped: false },
+        { id: "s10", name: "コンセント", kind: "outlet", cat: "electrical", flipped: false },
+        { id: "s11", name: "照明", kind: "light", cat: "electrical", flipped: false }
+      ];
+      let selectedStampId = "s1";
+
+      let pages = [{ orient: "portrait", els: [], undo: [], redo: [] }];
+      let pageIdx = 0;
+
+      let drawing = false;
+      let pts = [];
+      let dStart = null;
+      let dCurr = null;
+
+      function page() {
+        return pages[pageIdx];
       }
 
-      function createPage(orientation, elements) {
-        return {
-          orientation: orientation || "portrait",
-          elements: cloneElements(elements),
-          undoStack: [],
-          redoStack: []
-        };
+      function sizeOf(p) {
+        return p.orient === "portrait" ? { w: A4_S, h: A4_L } : { w: A4_L, h: A4_S };
       }
 
-      let pages = [createPage("portrait", [])];
-      let currentPageIndex = 0;
-
-      let isDrawing = false;
-      let inputMode = null;
-      let currentPoints = [];
-      let dimStart = null;
-      let dimCurrent = null;
-      let eraserPos = null;
-      let eraserErasedInDrag = false;
-      let pendingDimTarget = null;
-      let isNewDim = false;
-
-      function currentPage() {
-        return pages[currentPageIndex];
+      function saveUndo() {
+        const p = page();
+        p.undo.push(JSON.stringify(p.els));
+        p.redo = [];
+        syncButtons();
       }
 
-      function getCategoryStamps() {
-        return stampPresets.filter(function (s) { return s.category === selectedCategory; });
+      function syncButtons() {
+        const p = page();
+        document.getElementById("p-label").textContent = (pageIdx + 1) + " / " + pages.length + " ページ";
+        document.getElementById("p-prev").disabled = pageIdx === 0;
+        document.getElementById("p-next").disabled = pageIdx === pages.length - 1;
+        document.getElementById("p-del").disabled = pages.length <= 1;
+        document.getElementById("b-undo").disabled = p.undo.length === 0;
+        document.getElementById("b-redo").disabled = p.redo.length === 0;
+        document.getElementById("b-orient").textContent = p.orient === "portrait" ? "A4縦" : "A4横";
+        document.getElementById("z-label").textContent = Math.round(zoom * 100) + "%";
       }
 
-      function getSelectedStamp() {
-        const catStamps = getCategoryStamps();
-        if (!catStamps.length) return null;
-        return catStamps.find(function (s) { return s.id === selectedStampId; }) || catStamps[0];
+      function layoutCanvas() {
+        const p = page();
+        const sz = sizeOf(p);
+        cv.width = sz.w;
+        cv.height = sz.h;
+
+        const availW = Math.max(200, (workspace.clientWidth || window.innerWidth) - 24);
+        const availH = Math.max(240, (window.innerHeight * 0.65) - 24);
+        const fit = Math.min(availW / sz.w, availH / sz.h);
+        const scale = fit * zoom;
+
+        cv.style.width = Math.round(sz.w * scale) + "px";
+        cv.style.height = Math.round(sz.h * scale) + "px";
+        drawAll();
       }
 
-      function isOverTrash(clientX, clientY) {
-        if (!trashBtn) return false;
-        const rect = trashBtn.getBoundingClientRect();
-        return (
-          clientX >= rect.left - 8 &&
-          clientX <= rect.right + 8 &&
-          clientY >= rect.top - 8 &&
-          clientY <= rect.bottom + 8
-        );
-      }
-
-      function deleteStampById(stampId) {
-        if (!stampId) return;
-        const idx = stampPresets.findIndex(function (s) { return s.id === stampId; });
-        if (idx === -1) return;
-        const removed = stampPresets[idx];
-        stampPresets.splice(idx, 1);
-        if (selectedStampId === stampId) {
-          const remaining = getCategoryStamps();
-          selectedStampId = remaining.length ? remaining[0].id : null;
+      function drawGrid(c, w, h) {
+        c.save();
+        c.strokeStyle = "#e2e8f0";
+        c.lineWidth = 1;
+        c.beginPath();
+        for (let x = 40; x < w; x += 40) {
+          c.moveTo(x, 0);
+          c.lineTo(x, h);
         }
-        renderStampBar();
-        render();
-        setStatus("記号「" + removed.name + "」を削除しました");
-      }
-
-      function moveStampDrag(clientX, clientY) {
-        if (!draggingStampId) return;
-        const overTrash = isOverTrash(clientX, clientY);
-        if (trashBtn) trashBtn.classList.toggle("drag-over", overTrash);
-        if (overTrash) return;
-
-        const buttons = Array.from(listEl.querySelectorAll(".stamp-btn"));
-        for (let i = 0; i < buttons.length; i++) {
-          const targetBtn = buttons[i];
-          const targetId = targetBtn.dataset.stampId;
-          if (!targetId || targetId === draggingStampId) continue;
-          const r = targetBtn.getBoundingClientRect();
-          if (clientX >= r.left && clientX <= r.right && clientY >= r.top - 12 && clientY <= r.bottom + 12) {
-            const fromIdx = stampPresets.findIndex(function (x) { return x.id === draggingStampId; });
-            const toIdx = stampPresets.findIndex(function (x) { return x.id === targetId; });
-            if (fromIdx !== -1 && toIdx !== -1 && fromIdx !== toIdx) {
-              const moved = stampPresets.splice(fromIdx, 1)[0];
-              stampPresets.splice(toIdx, 0, moved);
-              renderStampBar();
-            }
-            break;
-          }
+        for (let y = 40; y < h; y += 40) {
+          c.moveTo(0, y);
+          c.lineTo(w, y);
         }
+        c.stroke();
+        c.restore();
       }
 
-      function endStampDrag(clientX, clientY) {
-        clearTimeout(longPressTimer);
-        longPressTimer = null;
-        if (!draggingStampId) return;
-        const idToHandle = draggingStampId;
-        draggingStampId = null;
-        const shouldDelete = clientX !== undefined && clientY !== undefined && isOverTrash(clientX, clientY);
-        if (trashBtn) trashBtn.classList.remove("drag-over");
-        if (shouldDelete) {
-          deleteStampById(idToHandle);
+      function drawStampEl(c, el) {
+        c.save();
+        c.strokeStyle = el.color || "#111827";
+        c.fillStyle = "#ffffff";
+        c.lineWidth = 2.5;
+        c.translate(el.x, el.y);
+        if (el.flipped) c.scale(1, -1);
+
+        if (el.kind === "door") {
+          c.beginPath();
+          c.moveTo(-14, 2);
+          c.lineTo(-14, 18);
+          c.moveTo(14, 2);
+          c.lineTo(14, 18);
+          c.moveTo(-14, 10);
+          c.lineTo(-14, -18);
+          c.stroke();
+          c.setLineDash([4, 3]);
+          c.beginPath();
+          c.arc(-14, 10, 28, -Math.PI / 2, 0, false);
+          c.stroke();
+          c.setLineDash([]);
+        } else if (el.kind === "diff") {
+          c.beginPath();
+          c.arc(0, 6, 22, Math.PI, 0, false);
+          c.closePath();
+          c.fill();
+          c.stroke();
+          c.beginPath();
+          c.moveTo(-17, -5);
+          c.lineTo(17, -5);
+          c.stroke();
+        } else if (el.kind === "fixed") {
+          c.beginPath();
+          c.arc(0, 6, 22, Math.PI, 0, false);
+          c.closePath();
+          c.fill();
+          c.stroke();
+          c.beginPath();
+          c.moveTo(0, -16);
+          c.lineTo(0, 6);
+          c.stroke();
+        } else if (el.kind === "tokuroku") {
+          c.beginPath();
+          c.arc(0, 6, 22, Math.PI, 0, false);
+          c.closePath();
+          c.fill();
+          c.stroke();
         } else {
-          renderStampBar();
-          setStatus("記号の並び順を更新しました");
+          c.fillRect(-26, -18, 52, 36);
+          c.strokeRect(-26, -18, 52, 36);
+          c.beginPath();
+          c.moveTo(-26, -18);
+          c.lineTo(26, 18);
+          c.moveTo(26, -18);
+          c.lineTo(-26, 18);
+          c.stroke();
         }
+        c.restore();
+
+        c.save();
+        c.fillStyle = el.color || "#111827";
+        c.font = "bold 15px sans-serif";
+        c.textAlign = "center";
+        c.fillText(el.name || "", el.x, el.y + 38);
+        c.restore();
       }
 
-      window.addEventListener("mousemove", function (e) {
-        if (draggingStampId) moveStampDrag(e.clientX, e.clientY);
-      });
+      function drawDimEl(c, el) {
+        const ang = Math.atan2(el.y2 - el.y1, el.x2 - el.x1);
+        c.save();
+        c.strokeStyle = el.color || "#111827";
+        c.fillStyle = el.color || "#111827";
+        c.lineWidth = 2.5;
+        c.beginPath();
+        c.moveTo(el.x1, el.y1);
+        c.lineTo(el.x2, el.y2);
+        c.stroke();
 
-      window.addEventListener("mouseup", function (e) {
-        if (draggingStampId) endStampDrag(e.clientX, e.clientY);
-      });
+        [
+          [el.x1, el.y1, ang],
+          [el.x2, el.y2, ang + Math.PI]
+        ].forEach(function (arr) {
+          c.beginPath();
+          c.moveTo(arr[0], arr[1]);
+          c.lineTo(arr[0] + 16 * Math.cos(arr[2] - 0.35), arr[1] + 16 * Math.sin(arr[2] - 0.35));
+          c.lineTo(arr[0] + 16 * Math.cos(arr[2] + 0.35), arr[1] + 16 * Math.sin(arr[2] + 0.35));
+          c.closePath();
+          c.fill();
+        });
 
-      function renderStampBar() {
-        listEl.innerHTML = "";
-        const catStamps = getCategoryStamps();
-        const activeStamp = getSelectedStamp();
-        if (activeStamp) {
-          selectedStampId = activeStamp.id;
-        }
+        const mx = (el.x1 + el.x2) / 2;
+        const my = (el.y1 + el.y2) / 2;
+        const txt = el.text || "寸法";
+        c.font = "bold 22px sans-serif";
+        c.textAlign = "center";
+        c.textBaseline = "middle";
+        const w = c.measureText(txt).width + 18;
+        c.fillStyle = "#ffffff";
+        c.fillRect(mx - w / 2, my - 16, w, 32);
+        c.strokeRect(mx - w / 2, my - 16, w, 32);
+        c.fillStyle = el.color || "#111827";
+        c.fillText(txt, mx, my);
+        c.restore();
+      }
 
-        catStamps.forEach(function (st) {
-          const btn = document.createElement("button");
-          btn.type = "button";
-          btn.dataset.stampId = st.id;
-          btn.className =
-            "stamp-btn" +
-            (st.id === selectedStampId ? " active" : "") +
-            (st.id === draggingStampId ? " dragging" : "");
-          btn.textContent = st.name + (st.flipped ? " ↕" : "");
+      function renderPage(p, targetCv, withGrid) {
+        const sz = sizeOf(p);
+        targetCv.width = sz.w;
+        targetCv.height = sz.h;
+        const c = targetCv.getContext("2d");
+        c.fillStyle = "#ffffff";
+        c.fillRect(0, 0, sz.w, sz.h);
+        if (withGrid) drawGrid(c, sz.w, sz.h);
 
-          btn.addEventListener("click", function () {
-            if (suppressNextStampClick) {
-              suppressNextStampClick = false;
-              return;
-            }
-            selectedStampId = st.id;
-            renderStampBar();
-            render();
-            setStatus("スタンプ選択中「" + st.name + "」：図面をタップして配置");
-          });
-
-          function beginPress() {
-            clearTimeout(longPressTimer);
-            longPressTimer = setTimeout(function () {
-              draggingStampId = st.id;
-              selectedStampId = st.id;
-              suppressNextStampClick = true;
-              renderStampBar();
-              setStatus("「" + st.name + "」移動中：左右で順番変更、🗑️ゴミ箱で削除");
-              if (navigator.vibrate) {
-                try { navigator.vibrate(25); } catch (_) {}
-              }
-            }, 450);
+        p.els.forEach(function (el) {
+          c.save();
+          c.strokeStyle = el.color || "#111827";
+          c.lineWidth = el.width || 2.5;
+          c.lineCap = "round";
+          c.lineJoin = "round";
+          if (el.type === "stroke" && el.pts.length > 1) {
+            c.beginPath();
+            c.moveTo(el.pts[0].x, el.pts[0].y);
+            for (let i = 1; i < el.pts.length; i++) c.lineTo(el.pts[i].x, el.pts[i].y);
+            c.stroke();
+          } else if (el.type === "line") {
+            c.beginPath();
+            c.moveTo(el.x1, el.y1);
+            c.lineTo(el.x2, el.y2);
+            c.stroke();
+          } else if (el.type === "rect") {
+            c.strokeRect(el.x, el.y, el.w, el.h);
+          } else if (el.type === "circle") {
+            c.beginPath();
+            c.ellipse(el.cx, el.cy, el.rx, el.ry, 0, 0, Math.PI * 2);
+            c.stroke();
+          } else if (el.type === "dim") {
+            drawDimEl(c, el);
+          } else if (el.type === "stamp") {
+            drawStampEl(c, el);
           }
-
-          btn.addEventListener("touchstart", function (e) {
-            if (!e.touches || !e.touches.length) return;
-            beginPress();
-          }, { passive: true });
-
-          btn.addEventListener("touchmove", function (e) {
-            if (!draggingStampId) {
-              clearTimeout(longPressTimer);
-              return;
-            }
-            if (!e.touches || !e.touches.length) return;
-            e.preventDefault();
-            const t = e.touches[0];
-            moveStampDrag(t.clientX, t.clientY);
-          }, { passive: false });
-
-          btn.addEventListener("touchend", function (e) {
-            const t = e.changedTouches && e.changedTouches[0];
-            endStampDrag(t ? t.clientX : undefined, t ? t.clientY : undefined);
-          });
-
-          btn.addEventListener("touchcancel", function () {
-            endStampDrag();
-          });
-
-          btn.addEventListener("mousedown", function (e) {
-            if (e.button !== 0) return;
-            beginPress();
-          });
-
-          listEl.appendChild(btn);
+          c.restore();
         });
       }
 
-      renderStampBar();
-
-      document.querySelectorAll(".cat-btn").forEach(function (btn) {
-        btn.addEventListener("click", function () {
-          selectedCategory = btn.getAttribute("data-cat") || "architectural";
-          document.querySelectorAll(".cat-btn").forEach(function (b) {
-            b.classList.toggle("active", b.getAttribute("data-cat") === selectedCategory);
-          });
-          const catStamps = getCategoryStamps();
-          if (catStamps.length && !catStamps.some(function (s) { return s.id === selectedStampId; })) {
-            selectedStampId = catStamps[0].id;
-          }
-          renderStampBar();
-          render();
-          const st = getSelectedStamp();
-          setStatus("区分「" + CATEGORY_NAMES[selectedCategory] + "」" + (st ? "（選択中: " + st.name + "）" : ""));
-        });
-      });
-
-      const btnFlipStamp = document.getElementById("btn-flip-stamp");
-      if (btnFlipStamp) {
-        btnFlipStamp.addEventListener("click", function () {
-          const st = getSelectedStamp();
-          if (!st) return;
-          st.flipped = !st.flipped;
-          renderStampBar();
-          render();
-          setStatus("記号「" + st.name + "」を上下180度回転しました（" + (st.flipped ? "反転中" : "通常向き") + "）");
-        });
-      }
-
-      if (trashBtn) {
-        trashBtn.addEventListener("click", function () {
-          if (!selectedStampId) return;
-          deleteStampById(selectedStampId);
-        });
-      }
-
-      function getLogicalSize(page) {
-        const p = page || currentPage();
-        return p.orientation === "portrait"
-          ? { width: A4_SHORT, height: A4_LONG }
-          : { width: A4_LONG, height: A4_SHORT };
-      }
-
-      function updateZoomLabel() {
-        const zoomLabel = document.getElementById("zoom-label");
-        if (zoomLabel) {
-          zoomLabel.textContent = Math.round(zoomLevel * 100) + "%";
+      function drawAll() {
+        renderPage(page(), ctx.canvas, showGrid);
+        if (drawing && tool === "pen" && pts.length > 1) {
+          ctx.save();
+          ctx.strokeStyle = color;
+          ctx.lineWidth = width;
+          ctx.lineCap = "round";
+          ctx.beginPath();
+          ctx.moveTo(pts[0].x, pts[0].y);
+          for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+          ctx.stroke();
+          ctx.restore();
+        }
+        if (drawing && tool === "dim" && dStart && dCurr) {
+          drawDimEl(ctx, { x1: dStart.x, y1: dStart.y, x2: dCurr.x, y2: dCurr.y, text: "...", color: color });
         }
       }
 
-      function setZoom(nextZoom) {
-        zoomLevel = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, Math.round(nextZoom * 100) / 100));
-        updateZoomLabel();
-        resizeCanvasDisplay();
-      }
-
-      const btnZoomIn = document.getElementById("zoom-in");
-      if (btnZoomIn) {
-        btnZoomIn.addEventListener("click", function () {
-          setZoom(zoomLevel + ZOOM_STEP);
-          logStatus("拡大: " + Math.round(zoomLevel * 100) + "%");
-        });
-      }
-
-      const btnZoomOut = document.getElementById("zoom-out");
-      if (btnZoomOut) {
-        btnZoomOut.addEventListener("click", function () {
-          setZoom(zoomLevel - ZOOM_STEP);
-          logStatus("縮小: " + Math.round(zoomLevel * 100) + "%");
-        });
-      }
-
-      const btnZoomReset = document.getElementById("zoom-reset");
-      if (btnZoomReset) {
-        btnZoomReset.addEventListener("click", function () {
-          setZoom(1.0);
-          workspace.scrollLeft = 0;
-          workspace.scrollTop = 0;
-          logStatus("表示倍率 100%");
-        });
-      }
-
-      workspace.addEventListener("wheel", function (e) {
-        if (!e.ctrlKey && !e.metaKey) return;
-        e.preventDefault();
-        const delta = e.deltaY < 0 ? 0.15 : -0.15;
-        setZoom(zoomLevel + delta);
-      }, { passive: false });
-
-      function pushHistory(page) {
-        const p = page || currentPage();
-        p.undoStack.push(JSON.stringify(p.elements));
-        if (p.undoStack.length > 50) p.undoStack.shift();
-        p.redoStack = [];
-        updateUIState();
-      }
-
-      function undo() {
-        const p = currentPage();
-        if (!p.undoStack.length) return;
-        p.redoStack.push(JSON.stringify(p.elements));
-        p.elements = JSON.parse(p.undoStack.pop());
-        render();
-        updateUIState();
-      }
-
-      function redo() {
-        const p = currentPage();
-        if (!p.redoStack.length) return;
-        p.undoStack.push(JSON.stringify(p.elements));
-        p.elements = JSON.parse(p.redoStack.pop());
-        render();
-        updateUIState();
-      }
-
-      function resizeCanvasDisplay() {
-        const p = currentPage();
-        const size = getLogicalSize(p);
-        canvas.width = size.width;
-        canvas.height = size.height;
-
-        const wsRect = workspace.getBoundingClientRect();
-        const availW = Math.max(180, (wsRect.width || window.innerWidth) - 24);
-        const availH = Math.max(220, (wsRect.height || window.innerHeight * 0.5) - 24);
-        const baseScale = Math.min(availW / size.width, availH / size.height);
-        const effectiveScale = baseScale * zoomLevel;
-
-        const dispW = Math.max(100, Math.floor(size.width * effectiveScale));
-        const dispH = Math.max(120, Math.floor(size.height * effectiveScale));
-
-        paperWrapper.style.width = dispW + "px";
-        paperWrapper.style.height = dispH + "px";
-
-        render();
-      }
-
-      function clientToCanvas(clientX, clientY) {
-        const rect = canvas.getBoundingClientRect();
-        const w = rect.width || 1;
-        const h = rect.height || 1;
+      function toCanvasPt(clientX, clientY) {
+        const r = cv.getBoundingClientRect();
         return {
-          x: ((clientX - rect.left) / w) * canvas.width,
-          y: ((clientY - rect.top) / h) * canvas.height
+          x: ((clientX - r.left) / (r.width || 1)) * cv.width,
+          y: ((clientY - r.top) / (r.height || 1)) * cv.height
         };
       }
 
-      function pointToSegmentDist(p, a, b) {
-        const dx = b.x - a.x;
-        const dy = b.y - a.y;
-        const lenSq = dx * dx + dy * dy;
-        if (lenSq === 0) return Math.hypot(p.x - a.x, p.y - a.y);
-        let t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / lenSq;
-        t = Math.max(0, Math.min(1, t));
-        return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
-      }
-
-      function recognizeShape(points, color, width) {
-        if (!autoShape || !points || points.length < 5) {
-          return { type: "stroke", points: points || [], color: color, width: width };
+      function makeShape(points) {
+        if (!autoShape || points.length < 6) {
+          return { type: "stroke", pts: points, color: color, width: width };
         }
-
-        let pathLen = 0;
         let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-        for (let i = 0; i < points.length; i++) {
-          const pt = points[i];
+        points.forEach(function (pt) {
           if (pt.x < minX) minX = pt.x;
           if (pt.y < minY) minY = pt.y;
           if (pt.x > maxX) maxX = pt.x;
           if (pt.y > maxY) maxY = pt.y;
-          if (i > 0) {
-            pathLen += Math.hypot(pt.x - points[i - 1].x, pt.y - points[i - 1].y);
-          }
-        }
-
-        if (pathLen < 35) {
-          return { type: "stroke", points: points, color: color, width: width };
-        }
-
+        });
+        const w = maxX - minX;
+        const h = maxY - minY;
         const first = points[0];
         const last = points[points.length - 1];
-        const endDist = Math.hypot(last.x - first.x, last.y - first.y);
-        const boxW = maxX - minX;
-        const boxH = maxY - minY;
-        const boxDiag = Math.hypot(boxW, boxH);
-
-        if (endDist > 40 && endDist / pathLen > 0.92) {
-          let maxPerp = 0;
+        const closed = Math.hypot(last.x - first.x, last.y - first.y) < 50 && w > 35 && h > 35;
+        if (closed) {
+          let area = 0;
           for (let i = 0; i < points.length; i++) {
-            const d = pointToSegmentDist(points[i], first, last);
-            if (d > maxPerp) maxPerp = d;
+            const j = (i + 1) % points.length;
+            area += points[i].x * points[j].y - points[j].x * points[i].y;
           }
-          if (maxPerp / endDist < 0.07) {
-            let x2 = last.x;
-            let y2 = last.y;
-            const deg = Math.abs(Math.atan2(y2 - first.y, x2 - first.x) * 180 / Math.PI);
-            if (deg < 4 || deg > 176) y2 = first.y;
-            if (Math.abs(deg - 90) < 4) x2 = first.x;
-            return { type: "line", x1: first.x, y1: first.y, x2: x2, y2: y2, color: color, width: width };
+          const ratio = (Math.abs(area) / 2) / Math.max(1, w * h);
+          if (ratio < 0.85) {
+            return { type: "circle", cx: (minX + maxX) / 2, cy: (minY + maxY) / 2, rx: w / 2, ry: h / 2, color: color, width: width };
           }
+          return { type: "rect", x: minX, y: minY, w: w, h: h, color: color, width: width };
         }
-
-        const isClosed = endDist < Math.max(45, boxDiag * 0.24) && boxW > 30 && boxH > 30;
-        if (!isClosed) {
-          return { type: "stroke", points: points, color: color, width: width };
-        }
-
-        let area = 0;
-        for (let i = 0; i < points.length; i++) {
-          const j = (i + 1) % points.length;
-          area += points[i].x * points[j].y - points[j].x * points[i].y;
-        }
-        area = Math.abs(area) / 2;
-        const areaRatio = area / Math.max(1, boxW * boxH);
-
-        const cx = (minX + maxX) / 2;
-        const cy = (minY + maxY) / 2;
-        const rx = Math.max(1, boxW / 2);
-        const ry = Math.max(1, boxH / 2);
-
-        let sumR = 0;
-        const radii = [];
-        for (let i = 0; i < points.length; i++) {
-          const r = Math.hypot((points[i].x - cx) / rx, (points[i].y - cy) / ry);
-          radii.push(r);
-          sumR += r;
-        }
-        const meanR = sumR / radii.length;
-        let sqSum = 0;
-        for (let i = 0; i < radii.length; i++) {
-          sqSum += Math.pow(radii[i] - meanR, 2);
-        }
-        const cvR = Math.sqrt(sqSum / radii.length) / Math.max(0.0001, meanR);
-
-        if (cvR < 0.14 && areaRatio > 0.64 && areaRatio < 0.89) {
-          const ratio = boxW / Math.max(1, boxH);
-          if (ratio > 0.88 && ratio < 1.12) {
-            const r = (rx + ry) / 2;
-            return { type: "ellipse", cx: cx, cy: cy, rx: r, ry: r, color: color, width: width };
-          }
-          return { type: "ellipse", cx: cx, cy: cy, rx: rx, ry: ry, color: color, width: width };
-        }
-
-        if (areaRatio >= 0.78 && areaRatio <= 1.08) {
-          return { type: "rect", x: minX, y: minY, w: boxW, h: boxH, color: color, width: width };
-        }
-
-        return { type: "stroke", points: points, color: color, width: width };
+        return { type: "stroke", pts: points, color: color, width: width };
       }
 
-      function hitTestElement(el, pos) {
-        const r = ERASER_RADIUS;
-        if (el.type === "stroke") {
-          for (let i = 0; i < el.points.length; i++) {
-            const p = el.points[i];
-            if (Math.hypot(p.x - pos.x, p.y - pos.y) <= r + (el.width || 2) * 0.5) return true;
-            if (i > 0 && pointToSegmentDist(pos, el.points[i - 1], p) <= r + (el.width || 2) * 0.5) return true;
-          }
-          return false;
-        }
-        if (el.type === "line") {
-          return pointToSegmentDist(pos, { x: el.x1, y: el.y1 }, { x: el.x2, y: el.y2 }) <= r + (el.width || 2) * 0.5;
-        }
-        if (el.type === "rect") {
-          const tol = r + (el.width || 2) * 0.5;
-          const p1 = { x: el.x, y: el.y };
-          const p2 = { x: el.x + el.w, y: el.y };
-          const p3 = { x: el.x + el.w, y: el.y + el.h };
-          const p4 = { x: el.x, y: el.y + el.h };
-          return (
-            pointToSegmentDist(pos, p1, p2) <= tol ||
-            pointToSegmentDist(pos, p2, p3) <= tol ||
-            pointToSegmentDist(pos, p3, p4) <= tol ||
-            pointToSegmentDist(pos, p4, p1) <= tol
-          );
-        }
-        if (el.type === "ellipse") {
-          const norm = Math.hypot((pos.x - el.cx) / Math.max(1, el.rx), (pos.y - el.cy) / Math.max(1, el.ry));
-          const avgR = (el.rx + el.ry) / 2;
-          return Math.abs(norm - 1) * avgR <= r + (el.width || 2) * 0.5;
-        }
-        if (el.type === "dimension") {
-          if (pointToSegmentDist(pos, { x: el.x1, y: el.y1 }, { x: el.x2, y: el.y2 }) <= r + 3) return true;
-          const mx = (el.x1 + el.x2) / 2;
-          const my = (el.y1 + el.y2) / 2;
-          return Math.hypot(pos.x - mx, pos.y - my) <= r + 18;
-        }
-        if (el.type === "stamp") {
-          const halfW = (el.w || 68) / 2;
-          const halfH = (el.h || 46) / 2;
-          return (
-            pos.x >= el.x - halfW - r &&
-            pos.x <= el.x + halfW + r &&
-            pos.y >= el.y - halfH - r &&
-            pos.y <= el.y + halfH + r
-          );
-        }
-        return false;
-      }
-
-      function findDimensionAt(pos) {
-        const els = currentPage().elements;
-        for (let i = els.length - 1; i >= 0; i--) {
-          const el = els[i];
-          if (el.type === "dimension") {
-            const mx = (el.x1 + el.x2) / 2;
-            const my = (el.y1 + el.y2) / 2;
-            if (Math.hypot(pos.x - mx, pos.y - my) <= 45) return el;
-          }
-        }
-        return null;
-      }
-
-      function eraseAt(pos) {
-        const p = currentPage();
-        const before = p.elements.length;
-        const nextEls = p.elements.filter(function (el) {
-          return !hitTestElement(el, pos);
-        });
-        if (nextEls.length !== before) {
-          if (!eraserErasedInDrag) {
-            pushHistory(p);
-            eraserErasedInDrag = true;
-          }
-          p.elements = nextEls;
-          render();
-        }
-      }
-
-      function placeStampAt(pos) {
-        const st = getSelectedStamp();
-        if (!st) return;
-        const p = currentPage();
-        pushHistory(p);
-        p.elements.push({
-          type: "stamp",
-          x: pos.x,
-          y: pos.y,
-          w: 68,
-          h: 46,
-          name: st.name,
-          kind: st.kind,
-          category: st.category || selectedCategory,
-          flipped: !!st.flipped,
-          color: penColor
-        });
-        render();
-        logStatus("記号配置: " + st.name);
-      }
-
-      function drawGrid(targetCtx, w, h) {
-        const step = 40;
-        targetCtx.save();
-        targetCtx.strokeStyle = "#e2e8f0";
-        targetCtx.lineWidth = 1;
-        targetCtx.beginPath();
-        for (let x = step; x < w; x += step) {
-          targetCtx.moveTo(x, 0);
-          targetCtx.lineTo(x, h);
-        }
-        for (let y = step; y < h; y += step) {
-          targetCtx.moveTo(0, y);
-          targetCtx.lineTo(w, y);
-        }
-        targetCtx.stroke();
-        targetCtx.restore();
-      }
-
-      function drawStamp(targetCtx, el, isPreview) {
-        const x = el.x;
-        const y = el.y;
-        const w = el.w || 68;
-        const h = el.h || 46;
-        const col = el.color || "#111827";
-        const flipped = !!el.flipped;
-
-        targetCtx.save();
-        if (isPreview) targetCtx.globalAlpha = 0.65;
-        targetCtx.strokeStyle = col;
-        targetCtx.fillStyle = "#ffffff";
-        targetCtx.lineWidth = 2.4;
-
-        targetCtx.save();
-        targetCtx.translate(x, y);
-        if (flipped) {
-          targetCtx.scale(1, -1);
-        }
-
-        if (el.kind === "door") {
-          const span = 28;
-          const hx = -span / 2;
-          const hy = 10;
-          targetCtx.beginPath();
-          targetCtx.moveTo(hx, hy - 8);
-          targetCtx.lineTo(hx, hy + 8);
-          targetCtx.moveTo(hx + span, hy - 8);
-          targetCtx.lineTo(hx + span, hy + 8);
-          targetCtx.moveTo(hx, hy);
-          targetCtx.lineTo(hx, hy - span);
-          targetCtx.stroke();
-
-          targetCtx.save();
-          targetCtx.setLineDash([4, 3]);
-          targetCtx.beginPath();
-          targetCtx.arc(hx, hy, span, -Math.PI / 2, 0, false);
-          targetCtx.stroke();
-          targetCtx.restore();
-        } else if (el.kind === "receiver") {
-          const rw = w;
-          const rh = h * 0.78;
-          const rx = -rw / 2;
-          const ry = -rh / 2;
-          targetCtx.fillRect(rx, ry, rw, rh);
-          targetCtx.strokeRect(rx, ry, rw, rh);
-          targetCtx.beginPath();
-          targetCtx.moveTo(rx, ry);
-          targetCtx.lineTo(rx + rw, ry + rh);
-          targetCtx.moveTo(rx + rw, ry);
-          targetCtx.lineTo(rx, ry + rh);
-          targetCtx.moveTo(rx, 0);
-          targetCtx.lineTo(rx + rw, 0);
-          targetCtx.stroke();
-        } else if (el.kind === "general_panel") {
-          const rw = w * 1.15;
-          const rh = h * 0.82;
-          const rx = -rw / 2;
-          const ry = -rh / 2;
-          targetCtx.fillRect(rx, ry, rw, rh);
-          targetCtx.strokeRect(rx, ry, rw, rh);
-          targetCtx.strokeRect(rx + 4, ry + 4, rw - 8, rh - 8);
-          targetCtx.beginPath();
-          targetCtx.moveTo(rx + rw / 3, ry + 4);
-          targetCtx.lineTo(rx + rw / 3, ry + rh - 4);
-          targetCtx.moveTo(rx + (rw * 2) / 3, ry + 4);
-          targetCtx.lineTo(rx + (rw * 2) / 3, ry + rh - 4);
-          targetCtx.stroke();
-        } else if (el.kind === "detector_diff") {
-          const rad = 22;
-          const cy = 6;
-          targetCtx.beginPath();
-          targetCtx.arc(0, cy, rad, Math.PI, 0, false);
-          targetCtx.closePath();
-          targetCtx.fill();
-          targetCtx.stroke();
-          targetCtx.beginPath();
-          targetCtx.moveTo(-rad + 5, cy - rad * 0.52);
-          targetCtx.lineTo(rad - 5, cy - rad * 0.52);
-          targetCtx.stroke();
-        } else if (el.kind === "detector_fixed") {
-          const rad = 22;
-          const cy = 6;
-          targetCtx.beginPath();
-          targetCtx.arc(0, cy, rad, Math.PI, 0, false);
-          targetCtx.closePath();
-          targetCtx.fill();
-          targetCtx.stroke();
-          targetCtx.beginPath();
-          targetCtx.moveTo(0, cy - rad);
-          targetCtx.lineTo(0, cy);
-          targetCtx.stroke();
-        } else if (el.kind === "detector_tokuroku") {
-          const rad = 22;
-          const cy = 6;
-          targetCtx.beginPath();
-          targetCtx.arc(0, cy, rad, Math.PI, 0, false);
-          targetCtx.closePath();
-          targetCtx.fill();
-          targetCtx.stroke();
-        } else if (el.kind === "detector_smoke") {
-          const sw = 38;
-          const sh = 38;
-          targetCtx.fillRect(-sw / 2, -sh / 2, sw, sh);
-          targetCtx.strokeRect(-sw / 2, -sh / 2, sw, sh);
-          targetCtx.fillStyle = col;
-          targetCtx.font = "bold 20px sans-serif";
-          targetCtx.textAlign = "center";
-          targetCtx.textBaseline = "middle";
-          targetCtx.fillText("S", 0, 1);
-        } else if (el.kind === "water_faucet") {
-          targetCtx.beginPath();
-          targetCtx.arc(0, 0, 14, 0, Math.PI * 2);
-          targetCtx.fill();
-          targetCtx.stroke();
-          targetCtx.beginPath();
-          targetCtx.moveTo(14, 0);
-          targetCtx.lineTo(24, -6);
-          targetCtx.stroke();
-        } else if (el.kind === "water_valve") {
-          targetCtx.beginPath();
-          targetCtx.moveTo(-16, -12);
-          targetCtx.lineTo(16, 12);
-          targetCtx.lineTo(16, -12);
-          targetCtx.lineTo(-16, 12);
-          targetCtx.closePath();
-          targetCtx.fill();
-          targetCtx.stroke();
-        } else if (el.kind === "elec_outlet") {
-          targetCtx.beginPath();
-          targetCtx.arc(0, 0, 14, 0, Math.PI * 2);
-          targetCtx.fill();
-          targetCtx.stroke();
-          targetCtx.beginPath();
-          targetCtx.moveTo(0, -14);
-          targetCtx.lineTo(0, 14);
-          targetCtx.stroke();
-        } else if (el.kind === "elec_light") {
-          targetCtx.beginPath();
-          targetCtx.arc(0, 0, 16, 0, Math.PI * 2);
-          targetCtx.fill();
-          targetCtx.stroke();
-          targetCtx.beginPath();
-          targetCtx.moveTo(-11, -11);
-          targetCtx.lineTo(11, 11);
-          targetCtx.moveTo(11, -11);
-          targetCtx.lineTo(-11, 11);
-          targetCtx.stroke();
-        } else {
-          const pw = 44;
-          const ph = 40;
-          const px = -pw / 2;
-          const py = -ph / 2;
-          targetCtx.fillRect(px, py, pw, ph);
-          targetCtx.strokeRect(px, py, pw, ph);
-          targetCtx.beginPath();
-          targetCtx.moveTo(px, py + ph);
-          targetCtx.lineTo(px + pw, py);
-          targetCtx.stroke();
-        }
-
-        targetCtx.restore();
-
-        targetCtx.fillStyle = col;
-        targetCtx.font = "bold 15px sans-serif";
-        targetCtx.textAlign = "center";
-        targetCtx.textBaseline = "top";
-        targetCtx.fillText(el.name || "", x, y + h / 2 + 2);
-
-        targetCtx.restore();
-      }
-
-      function drawDimension(targetCtx, el) {
-        const x1 = el.x1, y1 = el.y1, x2 = el.x2, y2 = el.y2;
-        const angle = Math.atan2(y2 - y1, x2 - x1);
-        const arrowLen = 18;
-        const arrowAngle = Math.PI / 7;
-
-        targetCtx.save();
-        targetCtx.strokeStyle = el.color || "#111827";
-        targetCtx.fillStyle = el.color || "#111827";
-        targetCtx.lineWidth = 2.4;
-
-        targetCtx.beginPath();
-        targetCtx.moveTo(x1, y1);
-        targetCtx.lineTo(x2, y2);
-        targetCtx.stroke();
-
-        targetCtx.beginPath();
-        targetCtx.moveTo(x1, y1);
-        targetCtx.lineTo(x1 + arrowLen * Math.cos(angle - arrowAngle), y1 + arrowLen * Math.sin(angle - arrowAngle));
-        targetCtx.lineTo(x1 + arrowLen * Math.cos(angle + arrowAngle), y1 + arrowLen * Math.sin(angle + arrowAngle));
-        targetCtx.closePath();
-        targetCtx.fill();
-
-        targetCtx.beginPath();
-        targetCtx.moveTo(x2, y2);
-        targetCtx.lineTo(x2 - arrowLen * Math.cos(angle - arrowAngle), y2 - arrowLen * Math.sin(angle - arrowAngle));
-        targetCtx.lineTo(x2 - arrowLen * Math.cos(angle + arrowAngle), y2 - arrowLen * Math.sin(angle + arrowAngle));
-        targetCtx.closePath();
-        targetCtx.fill();
-
-        const label = (el.text && el.text.trim()) ? el.text.trim() : "寸法";
-        const mx = (x1 + x2) / 2;
-        const my = (y1 + y2) / 2;
-
-        targetCtx.font = "bold 24px sans-serif";
-        targetCtx.textAlign = "center";
-        targetCtx.textBaseline = "middle";
-        const metrics = targetCtx.measureText(label);
-        const boxW = metrics.width + 20;
-        const boxH = 34;
-
-        targetCtx.fillStyle = "#ffffff";
-        targetCtx.fillRect(mx - boxW / 2, my - boxH / 2, boxW, boxH);
-        targetCtx.strokeStyle = el.color || "#111827";
-        targetCtx.lineWidth = 1.2;
-        targetCtx.strokeRect(mx - boxW / 2, my - boxH / 2, boxW, boxH);
-
-        targetCtx.fillStyle = el.color || "#111827";
-        targetCtx.fillText(label, mx, my + 1);
-        targetCtx.restore();
-      }
-
-      function drawElement(targetCtx, el) {
-        targetCtx.save();
-        targetCtx.strokeStyle = el.color || "#111827";
-        targetCtx.fillStyle = el.color || "#111827";
-        targetCtx.lineWidth = el.width || 2.4;
-        targetCtx.lineCap = "round";
-        targetCtx.lineJoin = "round";
-
-        if (el.type === "stroke") {
-          if (!el.points || el.points.length === 0) {
-            targetCtx.restore();
-            return;
-          }
-          if (el.points.length === 1) {
-            targetCtx.beginPath();
-            targetCtx.arc(el.points[0].x, el.points[0].y, (el.width || 2.4) / 2, 0, Math.PI * 2);
-            targetCtx.fill();
-          } else {
-            targetCtx.beginPath();
-            targetCtx.moveTo(el.points[0].x, el.points[0].y);
-            for (let i = 1; i < el.points.length; i++) {
-              targetCtx.lineTo(el.points[i].x, el.points[i].y);
-            }
-            targetCtx.stroke();
-          }
-        } else if (el.type === "line") {
-          targetCtx.beginPath();
-          targetCtx.moveTo(el.x1, el.y1);
-          targetCtx.lineTo(el.x2, el.y2);
-          targetCtx.stroke();
-        } else if (el.type === "rect") {
-          targetCtx.strokeRect(el.x, el.y, el.w, el.h);
-        } else if (el.type === "ellipse") {
-          targetCtx.beginPath();
-          targetCtx.ellipse(el.cx, el.cy, el.rx, el.ry, 0, 0, Math.PI * 2);
-          targetCtx.stroke();
-        } else if (el.type === "dimension") {
-          drawDimension(targetCtx, el);
-        } else if (el.type === "stamp") {
-          drawStamp(targetCtx, el, false);
-        }
-        targetCtx.restore();
-      }
-
-      function renderPageToCanvas(page, targetCanvas, withGrid) {
-        const size = getLogicalSize(page);
-        targetCanvas.width = size.width;
-        targetCanvas.height = size.height;
-        const tCtx = targetCanvas.getContext("2d");
-        tCtx.fillStyle = "#ffffff";
-        tCtx.fillRect(0, 0, size.width, size.height);
-        if (withGrid) drawGrid(tCtx, size.width, size.height);
-        for (let i = 0; i < page.elements.length; i++) {
-          drawElement(tCtx, page.elements[i]);
-        }
-      }
-
-      function render() {
-        renderPageToCanvas(currentPage(), canvas, showGrid);
-
-        if (isDrawing && tool === "pen" && currentPoints.length > 0) {
-          drawElement(ctx, {
-            type: "stroke",
-            points: currentPoints,
-            color: penColor,
-            width: penWidth
-          });
-        }
-
-        if (isDrawing && tool === "dim" && dimStart && dimCurrent) {
-          drawDimension(ctx, {
-            x1: dimStart.x,
-            y1: dimStart.y,
-            x2: dimCurrent.x,
-            y2: dimCurrent.y,
-            text: "...",
-            color: penColor
-          });
-        }
-
-        if (tool === "stamp" && stampHoverPos) {
-          const st = getSelectedStamp();
-          if (st) {
-            drawStamp(ctx, {
-              x: stampHoverPos.x,
-              y: stampHoverPos.y,
-              w: 68,
-              h: 46,
-              name: st.name,
-              kind: st.kind,
-              flipped: !!st.flipped,
-              color: penColor
-            }, true);
-          }
-        }
-
-        if (tool === "eraser" && eraserPos) {
-          ctx.save();
-          ctx.beginPath();
-          ctx.arc(eraserPos.x, eraserPos.y, ERASER_RADIUS, 0, Math.PI * 2);
-          ctx.fillStyle = "rgba(239, 68, 68, 0.16)";
-          ctx.fill();
-          ctx.strokeStyle = "#ef4444";
-          ctx.lineWidth = 2;
-          ctx.stroke();
-          ctx.restore();
-        }
-      }
-
-      function handleStart(pos, mode) {
-        if (inputMode && inputMode !== mode) return;
-        inputMode = mode;
-
+      cv.addEventListener("pointerdown", function (e) {
+        const pt = toCanvasPt(e.clientX, e.clientY);
         if (tool === "stamp") {
-          stampHoverPos = pos;
-          placeStampAt(pos);
-          inputMode = null;
+          const list = stamps.filter(function (s) { return s.cat === cat; });
+          const st = list.find(function (s) { return s.id === selectedStampId; }) || list[0];
+          if (!st) return;
+          saveUndo();
+          page().els.push({
+            type: "stamp",
+            x: pt.x,
+            y: pt.y,
+            name: st.name,
+            kind: st.kind,
+            flipped: !!st.flipped,
+            color: color
+          });
+          drawAll();
+          statusEl.textContent = "記号「" + st.name + "」を配置しました";
           return;
         }
-
         if (tool === "eraser") {
-          isDrawing = true;
-          eraserErasedInDrag = false;
-          eraserPos = pos;
-          eraseAt(pos);
-          render();
+          saveUndo();
+          page().els = page().els.filter(function (el) {
+            const ex = el.x !== undefined ? el.x : (el.cx !== undefined ? el.cx : el.x1);
+            const ey = el.y !== undefined ? el.y : (el.cy !== undefined ? el.cy : el.y1);
+            if (ex === undefined || ey === undefined) return true;
+            return Math.hypot(pt.x - ex, pt.y - ey) > 45;
+          });
+          drawAll();
+          statusEl.textContent = "付近の要素を消去しました";
           return;
         }
-
+        drawing = true;
         if (tool === "dim") {
-          const hitDim = findDimensionAt(pos);
-          if (hitDim) {
-            inputMode = null;
-            openDimModal(hitDim, false);
-            return;
-          }
-          isDrawing = true;
-          dimStart = pos;
-          dimCurrent = pos;
-          render();
-          return;
+          dStart = pt;
+          dCurr = pt;
+        } else {
+          pts = [pt];
         }
-
-        isDrawing = true;
-        currentPoints = [pos];
-        render();
-      }
-
-      function handleMove(pos, mode) {
-        if (inputMode && inputMode !== mode) return;
-
-        if (tool === "stamp") {
-          stampHoverPos = pos;
-          render();
-          return;
-        }
-
-        if (tool === "eraser") {
-          eraserPos = pos;
-          if (isDrawing) eraseAt(pos);
-          render();
-          return;
-        }
-
-        if (!isDrawing) return;
-
-        if (tool === "dim" && dimStart) {
-          let x2 = pos.x;
-          let y2 = pos.y;
-          const deg = Math.abs(Math.atan2(y2 - dimStart.y, x2 - dimStart.x) * 180 / Math.PI);
-          if (deg < 5 || deg > 175) y2 = dimStart.y;
-          if (Math.abs(deg - 90) < 5) x2 = dimStart.x;
-          dimCurrent = { x: x2, y: y2 };
-          render();
-          return;
-        }
-
-        if (tool === "pen") {
-          currentPoints.push(pos);
-          render();
-        }
-      }
-
-      function handleEnd(mode) {
-        if (inputMode && inputMode !== mode) return;
-        inputMode = null;
-
-        if (tool === "stamp") {
-          return;
-        }
-
-        if (tool === "eraser") {
-          isDrawing = false;
-          eraserErasedInDrag = false;
-          render();
-          return;
-        }
-
-        if (!isDrawing) return;
-        isDrawing = false;
-
-        if (tool === "dim" && dimStart && dimCurrent) {
-          const dist = Math.hypot(dimCurrent.x - dimStart.x, dimCurrent.y - dimStart.y);
-          const s = dimStart;
-          const c = dimCurrent;
-          dimStart = null;
-          dimCurrent = null;
-          if (dist > 25) {
-            openDimModal({
-              type: "dimension",
-              x1: s.x,
-              y1: s.y,
-              x2: c.x,
-              y2: c.y,
-              text: "",
-              color: penColor
-            }, true);
-          } else {
-            render();
-          }
-          return;
-        }
-
-        if (tool === "pen" && currentPoints.length > 0) {
-          const p = currentPage();
-          pushHistory(p);
-          const shape = recognizeShape(currentPoints, penColor, penWidth);
-          p.elements.push(shape);
-          currentPoints = [];
-          render();
-        }
-      }
-
-      canvas.addEventListener("touchstart", function (e) {
-        if (!e.touches || e.touches.length === 0) return;
-        e.preventDefault();
-        const t = e.touches[0];
-        handleStart(clientToCanvas(t.clientX, t.clientY), "touch");
-      }, { passive: false });
-
-      canvas.addEventListener("touchmove", function (e) {
-        if (!e.touches || e.touches.length === 0) return;
-        e.preventDefault();
-        const t = e.touches[0];
-        handleMove(clientToCanvas(t.clientX, t.clientY), "touch");
-      }, { passive: false });
-
-      canvas.addEventListener("touchend", function (e) {
-        e.preventDefault();
-        handleEnd("touch");
-      }, { passive: false });
-
-      canvas.addEventListener("touchcancel", function (e) {
-        e.preventDefault();
-        handleEnd("touch");
-      }, { passive: false });
-
-      canvas.addEventListener("pointerdown", function (e) {
-        if (e.pointerType === "touch") return;
-        handleStart(clientToCanvas(e.clientX, e.clientY), "pointer");
       });
 
-      canvas.addEventListener("pointermove", function (e) {
-        if (e.pointerType === "touch") return;
-        handleMove(clientToCanvas(e.clientX, e.clientY), "pointer");
-      });
-
-      canvas.addEventListener("pointerup", function (e) {
-        if (e.pointerType === "touch") return;
-        handleEnd("pointer");
-      });
-
-      canvas.addEventListener("pointercancel", function (e) {
-        if (e.pointerType === "touch") return;
-        handleEnd("pointer");
-      });
-
-      const dimModal = document.getElementById("dim-modal");
-      const dimInput = document.getElementById("dim-input");
-
-      function openDimModal(dimObj, isNew) {
-        pendingDimTarget = dimObj;
-        isNewDim = isNew;
-        if (dimInput) dimInput.value = dimObj.text || "";
-        if (dimModal) dimModal.classList.add("open");
-        setTimeout(function () {
-          try { if (dimInput) dimInput.focus(); } catch (_) {}
-        }, 50);
-      }
-
-      function closeDimModal() {
-        if (dimModal) dimModal.classList.remove("open");
-        pendingDimTarget = null;
-        render();
-      }
-
-      document.querySelectorAll(".unit-chip").forEach(function (btn) {
-        btn.addEventListener("click", function () {
-          if (!dimInput) return;
-          const u = btn.getAttribute("data-unit") || "";
-          if (u === "φ") {
-            dimInput.value = "φ" + dimInput.value;
-          } else {
-            dimInput.value = dimInput.value + u;
-          }
-        });
-      });
-
-      const dimOkBtn = document.getElementById("dim-ok");
-      if (dimOkBtn) {
-        dimOkBtn.addEventListener("click", function () {
-          if (!pendingDimTarget) return;
-          const p = currentPage();
-          pushHistory(p);
-          pendingDimTarget.text = ((dimInput && dimInput.value) || "").trim() || "寸法";
-          if (isNewDim) p.elements.push(pendingDimTarget);
-          closeDimModal();
-        });
-      }
-
-      const dimCancelBtn = document.getElementById("dim-cancel");
-      if (dimCancelBtn) dimCancelBtn.addEventListener("click", closeDimModal);
-
-      const clearModal = document.getElementById("clear-modal");
-      const btnClear = document.getElementById("btn-clear");
-      if (btnClear) {
-        btnClear.addEventListener("click", function () {
-          const p = currentPage();
-          if (!p.elements.length) return;
-          if (clearModal) clearModal.classList.add("open");
-        });
-      }
-
-      const clearCancelBtn = document.getElementById("clear-cancel");
-      if (clearCancelBtn) {
-        clearCancelBtn.addEventListener("click", function () {
-          if (clearModal) clearModal.classList.remove("open");
-        });
-      }
-
-      const clearConfirmBtn = document.getElementById("clear-confirm");
-      if (clearConfirmBtn) {
-        clearConfirmBtn.addEventListener("click", function () {
-          if (clearModal) clearModal.classList.remove("open");
-          const p = currentPage();
-          if (!p.elements.length) return;
-          pushHistory(p);
-          p.elements = [];
-          render();
-          logStatus("全消去しました");
-        });
-      }
-
-      const stampSaveModal = document.getElementById("stamp-save-modal");
-      const customStampCat = document.getElementById("custom-stamp-cat");
-      const customStampKind = document.getElementById("custom-stamp-kind");
-      const customStampLabel = document.getElementById("custom-stamp-label");
-
-      const btnAddStamp = document.getElementById("btn-add-stamp");
-      if (btnAddStamp) {
-        btnAddStamp.addEventListener("click", function () {
-          if (customStampCat) customStampCat.value = selectedCategory;
-          if (customStampLabel) customStampLabel.value = "";
-          if (stampSaveModal) stampSaveModal.classList.add("open");
-          setTimeout(function () {
-            try { if (customStampLabel) customStampLabel.focus(); } catch (_) {}
-          }, 50);
-        });
-      }
-
-      const stampSaveCancelBtn = document.getElementById("stamp-save-cancel");
-      if (stampSaveCancelBtn) {
-        stampSaveCancelBtn.addEventListener("click", function () {
-          if (stampSaveModal) stampSaveModal.classList.remove("open");
-        });
-      }
-
-      const stampSaveOkBtn = document.getElementById("stamp-save-ok");
-      if (stampSaveOkBtn) {
-        stampSaveOkBtn.addEventListener("click", function () {
-          const cat = (customStampCat && customStampCat.value) || selectedCategory;
-          const kind = (customStampKind && customStampKind.value) || "door";
-          const name = ((customStampLabel && customStampLabel.value) || "").trim() || "カスタム記号";
-          const newStamp = {
-            id: "st_" + Date.now() + "_" + Math.floor(Math.random() * 1000),
-            name: name,
-            kind: kind,
-            category: cat,
-            flipped: false
-          };
-          stampPresets.push(newStamp);
-          selectedCategory = cat;
-          document.querySelectorAll(".cat-btn").forEach(function (b) {
-            b.classList.toggle("active", b.getAttribute("data-cat") === selectedCategory);
-          });
-          selectedStampId = newStamp.id;
-          renderStampBar();
-          if (stampSaveModal) stampSaveModal.classList.remove("open");
-          setStatus("「" + CATEGORY_NAMES[cat] + "」に記号「" + name + "」を保存しました");
-        });
-      }
-
-      const stampPanel = document.getElementById("stamp-panel");
-      function setTool(nextTool) {
-        tool = nextTool;
-        eraserPos = null;
-        stampHoverPos = null;
-        const tPen = document.getElementById("tool-pen");
-        const tStamp = document.getElementById("tool-stamp");
-        const tDim = document.getElementById("tool-dim");
-        const tEraser = document.getElementById("tool-eraser");
-        if (tPen) tPen.classList.toggle("active", tool === "pen");
-        if (tStamp) tStamp.classList.toggle("active", tool === "stamp");
-        if (tDim) tDim.classList.toggle("active", tool === "dim");
-        if (tEraser) tEraser.classList.toggle("active", tool === "eraser");
-        if (stampPanel) stampPanel.classList.toggle("hidden", tool !== "stamp");
-
-        if (tool === "pen") {
-          setStatus("ペンモード：丸・四角・直線を描くと自動で図面化します");
-        } else if (tool === "stamp") {
-          setStatus("記号スタンプモード：建築設備・消防設備・水道・電気から選択してタップ配置");
-        } else if (tool === "dim") {
-          setStatus("寸法線モード：ドラッグで両矢印を引き、数字を入力します");
-        } else if (tool === "eraser") {
-          setStatus("消しゴムモード：消したい線・図形・記号・寸法線をなぞると消えます");
+      cv.addEventListener("pointermove", function (e) {
+        if (!drawing) return;
+        const pt = toCanvasPt(e.clientX, e.clientY);
+        if (tool === "dim") {
+          dCurr = pt;
+        } else {
+          pts.push(pt);
         }
-        resizeCanvasDisplay();
-      }
-
-      const toolPen = document.getElementById("tool-pen");
-      const toolStamp = document.getElementById("tool-stamp");
-      const toolDim = document.getElementById("tool-dim");
-      const toolEraser = document.getElementById("tool-eraser");
-      if (toolPen) toolPen.addEventListener("click", function () { setTool("pen"); });
-      if (toolStamp) toolStamp.addEventListener("click", function () { setTool("stamp"); });
-      if (toolDim) toolDim.addEventListener("click", function () { setTool("dim"); });
-      if (toolEraser) toolEraser.addEventListener("click", function () { setTool("eraser"); });
-
-      const btnShape = document.getElementById("toggle-shape");
-      if (btnShape) {
-        btnShape.addEventListener("click", function () {
-          autoShape = !autoShape;
-          btnShape.textContent = autoShape ? "✨ 図形認識: ON" : "✍️ 図形認識: OFF";
-          btnShape.classList.toggle("toggle-on", autoShape);
-        });
-      }
-
-      document.querySelectorAll(".color-dot").forEach(function (btn) {
-        btn.addEventListener("click", function () {
-          document.querySelectorAll(".color-dot").forEach(function (b) { b.classList.remove("active"); });
-          btn.classList.add("active");
-          penColor = btn.getAttribute("data-color") || "#111827";
-          render();
-        });
+        drawAll();
       });
 
-      document.querySelectorAll(".width-btn").forEach(function (btn) {
-        btn.addEventListener("click", function () {
-          document.querySelectorAll(".width-btn").forEach(function (b) { b.classList.remove("active"); });
-          btn.classList.add("active");
-          penWidth = parseFloat(btn.getAttribute("data-width")) || 2.4;
-        });
-      });
-
-      const btnUndo = document.getElementById("btn-undo");
-      const btnRedo = document.getElementById("btn-redo");
-      if (btnUndo) btnUndo.addEventListener("click", undo);
-      if (btnRedo) btnRedo.addEventListener("click", redo);
-
-      function updateUIState() {
-        const p = currentPage();
-        const pageLabel = document.getElementById("page-label");
-        const pagePrev = document.getElementById("page-prev");
-        const pageNext = document.getElementById("page-next");
-        const pageDel = document.getElementById("page-del");
-        const toggleOrient = document.getElementById("toggle-orient");
-
-        if (pageLabel) pageLabel.textContent = (currentPageIndex + 1) + " / " + pages.length + " ページ";
-        if (pagePrev) pagePrev.disabled = currentPageIndex === 0;
-        if (pageNext) pageNext.disabled = currentPageIndex === pages.length - 1;
-        if (pageDel) pageDel.disabled = pages.length <= 1;
-        if (btnUndo) btnUndo.disabled = p.undoStack.length === 0;
-        if (btnRedo) btnRedo.disabled = p.redoStack.length === 0;
-        if (toggleOrient) toggleOrient.textContent = p.orientation === "portrait" ? "📄 A4縦" : "📄 A4横";
-        updateZoomLabel();
-      }
-
-      const pagePrev = document.getElementById("page-prev");
-      const pageNext = document.getElementById("page-next");
-      const pageAdd = document.getElementById("page-add");
-      const pageDup = document.getElementById("page-dup");
-      const pageDel = document.getElementById("page-del");
-      const toggleOrient = document.getElementById("toggle-orient");
-
-      if (pagePrev) {
-        pagePrev.addEventListener("click", function () {
-          if (currentPageIndex > 0) {
-            currentPageIndex--;
-            resizeCanvasDisplay();
-            updateUIState();
-          }
-        });
-      }
-
-      if (pageNext) {
-        pageNext.addEventListener("click", function () {
-          if (currentPageIndex < pages.length - 1) {
-            currentPageIndex++;
-            resizeCanvasDisplay();
-            updateUIState();
-          }
-        });
-      }
-
-      if (pageAdd) {
-        pageAdd.addEventListener("click", function () {
-          pages.splice(currentPageIndex + 1, 0, createPage(currentPage().orientation, []));
-          currentPageIndex++;
-          resizeCanvasDisplay();
-          updateUIState();
-        });
-      }
-
-      if (pageDup) {
-        pageDup.addEventListener("click", function () {
-          const src = currentPage();
-          pages.splice(currentPageIndex + 1, 0, createPage(src.orientation, src.elements));
-          currentPageIndex++;
-          resizeCanvasDisplay();
-          updateUIState();
-          setStatus("現在の図面を " + (currentPageIndex + 1) + " ページ目に複製しました");
-        });
-      }
-
-      if (pageDel) {
-        pageDel.addEventListener("click", function () {
-          if (pages.length <= 1) return;
-          pages.splice(currentPageIndex, 1);
-          if (currentPageIndex >= pages.length) currentPageIndex = pages.length - 1;
-          resizeCanvasDisplay();
-          updateUIState();
-        });
-      }
-
-      if (toggleOrient) {
-        toggleOrient.addEventListener("click", function () {
-          const p = currentPage();
-          p.orientation = p.orientation === "portrait" ? "landscape" : "portrait";
-          resizeCanvasDisplay();
-          updateUIState();
-        });
-      }
-
-      const btnGrid = document.getElementById("toggle-grid");
-      if (btnGrid) {
-        btnGrid.addEventListener("click", function () {
-          showGrid = !showGrid;
-          btnGrid.textContent = showGrid ? "＃ 方眼: ON" : "＃ 方眼: OFF";
-          btnGrid.classList.toggle("toggle-on", showGrid);
-          render();
-        });
-      }
-
-      const btnGridExp = document.getElementById("toggle-grid-export");
-      if (btnGridExp) {
-        btnGridExp.addEventListener("click", function () {
-          includeGridOnExport = !includeGridOnExport;
-          btnGridExp.textContent = includeGridOnExport ? "出力方眼: ON" : "出力方眼: OFF";
-          btnGridExp.classList.toggle("toggle-on", includeGridOnExport);
-        });
-      }
-
-      function openPngFallback(dataUrl, filename) {
-        try {
-          const byteString = atob(dataUrl.split(",")[1]);
-          const mimeString = dataUrl.split(",")[0].split(":")[1].split(";")[0];
-          const ab = new ArrayBuffer(byteString.length);
-          const ia = new Uint8Array(ab);
-          for (let i = 0; i < byteString.length; i++) {
-            ia[i] = byteString.charCodeAt(i);
-          }
-          const blob = new Blob([ab], { type: mimeString });
-          const blobUrl = URL.createObjectURL(blob);
-
-          const a = document.createElement("a");
-          a.href = blobUrl;
-          a.download = filename;
-          a.rel = "noopener";
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-
-          setTimeout(function () {
-            URL.revokeObjectURL(blobUrl);
-          }, 4000);
-        } catch (err) {
-          const win = window.open("", "_blank");
-          if (win && win.document) {
-            win.document.write(
-              '<html><body style="margin:0;background:#111;display:flex;align-items:center;justify-content:center;">' +
-              '<img src="' + dataUrl + '" style="max-width:100%;height:auto;" alt="' + filename + '" />' +
-              "</body></html>"
-            );
-            win.document.close();
-          } else {
-            logStatus("PNG出力エラー: ポップアップを確認してください");
-          }
-        }
-      }
-
-      const exportPngBtn = document.getElementById("export-png");
-      if (exportPngBtn) {
-        exportPngBtn.addEventListener("click", function () {
-          try {
-            const off = document.createElement("canvas");
-            renderPageToCanvas(currentPage(), off, includeGridOnExport);
-            const dataUrl = off.toDataURL("image/png");
-            const filename = "図面_P" + (currentPageIndex + 1) + ".png";
-            openPngFallback(dataUrl, filename);
-            setStatus((currentPageIndex + 1) + " ページ目のPNG出力を実行しました");
-            logStatus("PNG出力完了");
-          } catch (err) {
-            logStatus("PNG失敗: " + (err && err.message ? err.message : "エラー"));
-          }
-        });
-      }
-
-      const exportPdfBtn = document.getElementById("export-pdf");
-      if (exportPdfBtn) {
-        exportPdfBtn.addEventListener("click", function () {
-          try {
-            const container = document.getElementById("print-container");
-            if (!container) {
-              logStatus("印刷領域が見つかりません");
-              return;
+      window.addEventListener("pointerup", function () {
+        if (!drawing) return;
+        drawing = false;
+        if (tool === "dim" && dStart && dCurr) {
+          if (Math.hypot(dCurr.x - dStart.x, dCurr.y - dStart.y) > 25) {
+            const val = window.prompt("寸法数値を入力してください（例: 1200mm）", "1200mm");
+            if (val !== null) {
+              saveUndo();
+              page().els.push({
+                type: "dim",
+                x1: dStart.x,
+                y1: dStart.y,
+                x2: dCurr.x,
+                y2: dCurr.y,
+                text: val.trim() || "寸法",
+                color: color
+              });
             }
-            container.innerHTML = "";
-            const dataUrls = [];
-
-            pages.forEach(function (p, idx) {
-              const off = document.createElement("canvas");
-              renderPageToCanvas(p, off, includeGridOnExport);
-              const url = off.toDataURL("image/png");
-              dataUrls.push({ page: idx + 1, url: url });
-
-              const div = document.createElement("div");
-              div.className = "print-page";
-              const img = document.createElement("img");
-              img.src = url;
-              div.appendChild(img);
-              container.appendChild(div);
-            });
-
-            setStatus("PDF印刷画面を開きます（「PDFに保存」または共有を選択）");
-            logStatus("PDF準備完了 (" + dataUrls.length + "P)");
-
-            let printed = false;
-            setTimeout(function () {
-              try {
-                window.print();
-                printed = true;
-              } catch (_) {
-                printed = false;
-              }
-
-              if (!printed) {
-                const win = window.open("", "_blank");
-                if (win && win.document) {
-                  const imgsHtml = dataUrls.map(function (item) {
-                    return '<div style="margin:12px auto;text-align:center;page-break-after:always;">' +
-                      '<div style="font-size:12px;color:#555;margin-bottom:4px;">' + item.page + ' ページ目</div>' +
-                      '<img src="' + item.url + '" style="max-width:100%;height:auto;border:1px solid #ccc;" />' +
-                      '</div>';
-                  }).join("");
-                  win.document.write(
-                    '<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>PDF出力用プレビュー</title></head>' +
-                    '<body style="margin:0;padding:12px;background:#f8fafc;font-family:sans-serif;">' +
-                    '<div style="text-align:center;margin-bottom:12px;"><button onclick="window.print()" style="padding:10px 18px;font-size:15px;">印刷 / PDF保存</button></div>' +
-                    imgsHtml +
-                    '</body></html>'
-                  );
-                  win.document.close();
-                }
-              }
-            }, 200);
-          } catch (err) {
-            logStatus("PDF失敗: " + (err && err.message ? err.message : "エラー"));
           }
+          dStart = null;
+          dCurr = null;
+          drawAll();
+          return;
+        }
+        if (tool === "pen" && pts.length > 0) {
+          saveUndo();
+          page().els.push(makeShape(pts));
+          pts = [];
+          drawAll();
+        }
+      });
+
+      function renderStamps() {
+        stampItemsEl.innerHTML = "";
+        const list = stamps.filter(function (s) { return s.cat === cat; });
+        if (list.length && !list.some(function (s) { return s.id === selectedStampId; })) {
+          selectedStampId = list[0].id;
+        }
+        list.forEach(function (s) {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.textContent = s.name + (s.flipped ? " (反転)" : "");
+          if (s.id === selectedStampId) btn.classList.add("active");
+          btn.addEventListener("click", function () {
+            selectedStampId = s.id;
+            renderStamps();
+            statusEl.textContent = "選択中の記号: " + s.name;
+          });
+          stampItemsEl.appendChild(btn);
         });
       }
 
-      window.addEventListener("resize", resizeCanvasDisplay);
-      resizeCanvasDisplay();
-      updateUIState();
-      logStatus("準備完了");
+      document.querySelectorAll(".cat-btn").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          cat = btn.getAttribute("data-cat");
+          document.querySelectorAll(".cat-btn").forEach(function (b) { b.classList.remove("active"); });
+          btn.classList.add("active");
+          renderStamps();
+          statusEl.textContent = "区分を変更しました: " + btn.textContent;
+        });
+      });
+
+      document.getElementById("b-flip").addEventListener("click", function () {
+        const st = stamps.find(function (s) { return s.id === selectedStampId; });
+        if (!st) return;
+        st.flipped = !st.flipped;
+        renderStamps();
+        statusEl.textContent = "「" + st.name + "」を上下反転しました";
+      });
+
+      document.getElementById("b-add-stamp").addEventListener("click", function () {
+        const name = window.prompt("追加する記号名を入力してください", "新記号");
+        if (!name) return;
+        const newId = "st_" + Date.now();
+        stamps.push({ id: newId, name: name.trim(), kind: "panel", cat: cat, flipped: false });
+        selectedStampId = newId;
+        renderStamps();
+        statusEl.textContent = "記号「" + name.trim() + "」を追加しました";
+      });
+
+      document.getElementById("b-del-stamp").addEventListener("click", function () {
+        stamps = stamps.filter(function (s) { return s.id !== selectedStampId; });
+        renderStamps();
+        statusEl.textContent = "選択中の記号を削除しました";
+      });
+
+      function setTool(next) {
+        tool = next;
+        ["t-pen", "t-stamp", "t-dim", "t-eraser"].forEach(function (id) {
+          document.getElementById(id).classList.remove("active");
+        });
+        document.getElementById("t-" + next).classList.add("active");
+        stampPanel.classList.toggle("hidden", next !== "stamp");
+        statusEl.textContent = "モード切替: " + next;
+      }
+
+      document.getElementById("t-pen").addEventListener("click", function () { setTool("pen"); });
+      document.getElementById("t-stamp").addEventListener("click", function () { setTool("stamp"); });
+      document.getElementById("t-dim").addEventListener("click", function () { setTool("dim"); });
+      document.getElementById("t-eraser").addEventListener("click", function () { setTool("eraser"); });
+
+      document.getElementById("t-shape").addEventListener("click", function () {
+        autoShape = !autoShape;
+        this.textContent = autoShape ? "図形認識: ON" : "図形認識: OFF";
+        this.classList.toggle("on", autoShape);
+      });
+
+      document.querySelectorAll(".color-btn").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          document.querySelectorAll(".color-btn").forEach(function (b) { b.classList.remove("active"); });
+          btn.classList.add("active");
+          color = btn.getAttribute("data-c");
+        });
+      });
+
+      document.querySelectorAll(".w-btn").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          document.querySelectorAll(".w-btn").forEach(function (b) { b.classList.remove("active"); });
+          btn.classList.add("active");
+          width = parseFloat(btn.getAttribute("data-w")) || 2.5;
+        });
+      });
+
+      document.getElementById("b-undo").addEventListener("click", function () {
+        const p = page();
+        if (!p.undo.length) return;
+        p.redo.push(JSON.stringify(p.els));
+        p.els = JSON.parse(p.undo.pop());
+        drawAll();
+        syncButtons();
+      });
+
+      document.getElementById("b-redo").addEventListener("click", function () {
+        const p = page();
+        if (!p.redo.length) return;
+        p.undo.push(JSON.stringify(p.els));
+        p.els = JSON.parse(p.redo.pop());
+        drawAll();
+        syncButtons();
+      });
+
+      document.getElementById("b-clear").addEventListener("click", function () {
+        if (!window.confirm("現在のページを全消去しますか？")) return;
+        saveUndo();
+        page().els = [];
+        drawAll();
+        statusEl.textContent = "全消去しました";
+      });
+
+      document.getElementById("p-prev").addEventListener("click", function () {
+        if (pageIdx > 0) { pageIdx--; layoutCanvas(); syncButtons(); }
+      });
+
+      document.getElementById("p-next").addEventListener("click", function () {
+        if (pageIdx < pages.length - 1) { pageIdx++; layoutCanvas(); syncButtons(); }
+      });
+
+      document.getElementById("p-add").addEventListener("click", function () {
+        pages.splice(pageIdx + 1, 0, { orient: page().orient, els: [], undo: [], redo: [] });
+        pageIdx++;
+        layoutCanvas();
+        syncButtons();
+      });
+
+      document.getElementById("p-dup").addEventListener("click", function () {
+        const src = page();
+        pages.splice(pageIdx + 1, 0, { orient: src.orient, els: JSON.parse(JSON.stringify(src.els)), undo: [], redo: [] });
+        pageIdx++;
+        layoutCanvas();
+        syncButtons();
+      });
+
+      document.getElementById("p-del").addEventListener("click", function () {
+        if (pages.length <= 1) return;
+        pages.splice(pageIdx, 1);
+        if (pageIdx >= pages.length) pageIdx = pages.length - 1;
+        layoutCanvas();
+        syncButtons();
+      });
+
+      document.getElementById("z-in").addEventListener("click", function () {
+        zoom = Math.min(3.0, Math.round((zoom + 0.25) * 100) / 100);
+        layoutCanvas();
+        syncButtons();
+        statusEl.textContent = "拡大: " + Math.round(zoom * 100) + "%";
+      });
+
+      document.getElementById("z-out").addEventListener("click", function () {
+        zoom = Math.max(0.5, Math.round((zoom - 0.25) * 100) / 100);
+        layoutCanvas();
+        syncButtons();
+        statusEl.textContent = "縮小: " + Math.round(zoom * 100) + "%";
+      });
+
+      document.getElementById("z-reset").addEventListener("click", function () {
+        zoom = 1.0;
+        workspace.scrollLeft = 0;
+        workspace.scrollTop = 0;
+        layoutCanvas();
+        syncButtons();
+        statusEl.textContent = "100%にリセットしました";
+      });
+
+      document.getElementById("b-orient").addEventListener("click", function () {
+        page().orient = page().orient === "portrait" ? "landscape" : "portrait";
+        layoutCanvas();
+        syncButtons();
+      });
+
+      document.getElementById("b-grid").addEventListener("click", function () {
+        showGrid = !showGrid;
+        this.textContent = showGrid ? "方眼: ON" : "方眼: OFF";
+        this.classList.toggle("on", showGrid);
+        drawAll();
+      });
+
+      document.getElementById("b-grid-exp").addEventListener("click", function () {
+        exportGrid = !exportGrid;
+        this.textContent = exportGrid ? "出力方眼: ON" : "出力方眼: OFF";
+        this.classList.toggle("on", exportGrid);
+      });
+
+      document.getElementById("b-png").addEventListener("click", function () {
+        const off = document.createElement("canvas");
+        renderPage(page(), off, exportGrid);
+        const url = off.toDataURL("image/png");
+        const w = window.open("", "_blank");
+        if (w) {
+          w.document.write('<img src="' + url + '" style="max-width:100%;height:auto;" />');
+          w.document.close();
+        }
+        statusEl.textContent = "PNG画像プレビューを開きました（長押しで保存できます）";
+      });
+
+      document.getElementById("b-pdf").addEventListener("click", function () {
+        const area = document.getElementById("print-area");
+        area.innerHTML = "";
+        pages.forEach(function (p) {
+          const off = document.createElement("canvas");
+          renderPage(p, off, exportGrid);
+          const div = document.createElement("div");
+          div.className = "p-page";
+          const img = document.createElement("img");
+          img.src = off.toDataURL("image/png");
+          div.appendChild(img);
+          area.appendChild(div);
+        });
+        statusEl.textContent = "PDF印刷画面を呼び出します";
+        setTimeout(function () {
+          window.print();
+        }, 150);
+      });
+
+      window.addEventListener("resize", layoutCanvas);
+      renderStamps();
+      layoutCanvas();
+      syncButtons();
+      statusEl.textContent = "準備完了（タップして操作してください）";
     })();
   </script>
 </body>
