@@ -603,6 +603,10 @@
       const statusMsg = document.getElementById("status-msg");
       const debugInfo = document.getElementById("debug-info");
 
+      function setStatus(msg) {
+        if (statusMsg) statusMsg.textContent = msg;
+      }
+
       function logStatus(msg) {
         if (debugInfo) debugInfo.textContent = msg;
       }
@@ -622,9 +626,11 @@
       const ctx = canvas && canvas.getContext ? canvas.getContext("2d") : null;
       const workspace = document.getElementById("workspace");
       const paperWrapper = document.getElementById("paper-wrapper");
+      const listEl = document.getElementById("stamp-list");
+      const trashBtn = document.getElementById("btn-stamp-trash");
 
-      if (!canvas || !ctx || !workspace || !paperWrapper) {
-        logStatus("キャンバス初期化失敗");
+      if (!canvas || !ctx || !workspace || !paperWrapper || !listEl) {
+        logStatus("要素初期化失敗");
         return;
       }
 
@@ -659,7 +665,6 @@
       let longPressTimer = null;
       let draggingStampId = null;
       let suppressNextStampClick = false;
-      const trashBtn = document.getElementById("btn-stamp-trash");
 
       let tool = "pen";
       let autoShape = true;
@@ -731,39 +736,59 @@
         }
         renderStampBar();
         render();
-        statusMsg.textContent = "記号「" + removed.name + "」を削除しました";
+        setStatus("記号「" + removed.name + "」を削除しました");
       }
 
-      document.querySelectorAll(".cat-btn").forEach(function (btn) {
-        btn.addEventListener("click", function () {
-          selectedCategory = btn.getAttribute("data-cat") || "architectural";
-          document.querySelectorAll(".cat-btn").forEach(function (b) {
-            b.classList.toggle("active", b.getAttribute("data-cat") === selectedCategory);
-          });
-          const catStamps = getCategoryStamps();
-          if (catStamps.length && !catStamps.some(function (s) { return s.id === selectedStampId; })) {
-            selectedStampId = catStamps[0].id;
+      function moveStampDrag(clientX, clientY) {
+        if (!draggingStampId) return;
+        const overTrash = isOverTrash(clientX, clientY);
+        if (trashBtn) trashBtn.classList.toggle("drag-over", overTrash);
+        if (overTrash) return;
+
+        const buttons = Array.from(listEl.querySelectorAll(".stamp-btn"));
+        for (let i = 0; i < buttons.length; i++) {
+          const targetBtn = buttons[i];
+          const targetId = targetBtn.dataset.stampId;
+          if (!targetId || targetId === draggingStampId) continue;
+          const r = targetBtn.getBoundingClientRect();
+          if (clientX >= r.left && clientX <= r.right && clientY >= r.top - 12 && clientY <= r.bottom + 12) {
+            const fromIdx = stampPresets.findIndex(function (x) { return x.id === draggingStampId; });
+            const toIdx = stampPresets.findIndex(function (x) { return x.id === targetId; });
+            if (fromIdx !== -1 && toIdx !== -1 && fromIdx !== toIdx) {
+              const moved = stampPresets.splice(fromIdx, 1)[0];
+              stampPresets.splice(toIdx, 0, moved);
+              renderStampBar();
+            }
+            break;
           }
+        }
+      }
+
+      function endStampDrag(clientX, clientY) {
+        clearTimeout(longPressTimer);
+        longPressTimer = null;
+        if (!draggingStampId) return;
+        const idToHandle = draggingStampId;
+        draggingStampId = null;
+        const shouldDelete = clientX !== undefined && clientY !== undefined && isOverTrash(clientX, clientY);
+        if (trashBtn) trashBtn.classList.remove("drag-over");
+        if (shouldDelete) {
+          deleteStampById(idToHandle);
+        } else {
           renderStampBar();
-          render();
-          const st = getSelectedStamp();
-          statusMsg.textContent =
-            "区分「" + CATEGORY_NAMES[selectedCategory] + "」" +
-            (st ? "（選択中: " + st.name + "）" : "");
-        });
+          setStatus("記号の並び順を更新しました");
+        }
+      }
+
+      window.addEventListener("mousemove", function (e) {
+        if (draggingStampId) moveStampDrag(e.clientX, e.clientY);
       });
 
-      document.getElementById("btn-flip-stamp").addEventListener("click", function () {
-        const st = getSelectedStamp();
-        if (!st) return;
-        st.flipped = !st.flipped;
-        renderStampBar();
-        render();
-        statusMsg.textContent = "記号「" + st.name + "」を上下180度回転しました（" + (st.flipped ? "反転中" : "通常向き") + "）";
+      window.addEventListener("mouseup", function (e) {
+        if (draggingStampId) endStampDrag(e.clientX, e.clientY);
       });
 
       function renderStampBar() {
-        const listEl = document.getElementById("stamp-list");
         listEl.innerHTML = "";
         const catStamps = getCategoryStamps();
         const activeStamp = getSelectedStamp();
@@ -789,7 +814,7 @@
             selectedStampId = st.id;
             renderStampBar();
             render();
-            statusMsg.textContent = "スタンプ選択中「" + st.name + "」：図面をタップして配置";
+            setStatus("スタンプ選択中「" + st.name + "」：図面をタップして配置");
           });
 
           function beginPress() {
@@ -799,52 +824,11 @@
               selectedStampId = st.id;
               suppressNextStampClick = true;
               renderStampBar();
-              statusMsg.textContent = "「" + st.name + "」移動中：左右で順番変更、🗑️ゴミ箱で削除";
+              setStatus("「" + st.name + "」移動中：左右で順番変更、🗑️ゴミ箱で削除");
               if (navigator.vibrate) {
                 try { navigator.vibrate(25); } catch (_) {}
               }
             }, 450);
-          }
-
-          function movePress(clientX, clientY) {
-            if (!draggingStampId) return;
-            const overTrash = isOverTrash(clientX, clientY);
-            trashBtn.classList.toggle("drag-over", overTrash);
-            if (overTrash) return;
-
-            const buttons = Array.from(listEl.querySelectorAll(".stamp-btn"));
-            for (let i = 0; i < buttons.length; i++) {
-              const targetBtn = buttons[i];
-              const targetId = targetBtn.dataset.stampId;
-              if (!targetId || targetId === draggingStampId) continue;
-              const r = targetBtn.getBoundingClientRect();
-              if (clientX >= r.left && clientX <= r.right && clientY >= r.top - 12 && clientY <= r.bottom + 12) {
-                const fromIdx = stampPresets.findIndex(function (x) { return x.id === draggingStampId; });
-                const toIdx = stampPresets.findIndex(function (x) { return x.id === targetId; });
-                if (fromIdx !== -1 && toIdx !== -1 && fromIdx !== toIdx) {
-                  const moved = stampPresets.splice(fromIdx, 1)[0];
-                  stampPresets.splice(toIdx, 0, moved);
-                  renderStampBar();
-                }
-                break;
-              }
-            }
-          }
-
-          function endPress(clientX, clientY) {
-            clearTimeout(longPressTimer);
-            longPressTimer = null;
-            if (!draggingStampId) return;
-            const idToHandle = draggingStampId;
-            draggingStampId = null;
-            const shouldDelete = clientX !== undefined && clientY !== undefined && isOverTrash(clientX, clientY);
-            trashBtn.classList.remove("drag-over");
-            if (shouldDelete) {
-              deleteStampById(idToHandle);
-            } else {
-              renderStampBar();
-              statusMsg.textContent = "記号の並び順を更新しました";
-            }
           }
 
           btn.addEventListener("touchstart", function (e) {
@@ -860,29 +844,21 @@
             if (!e.touches || !e.touches.length) return;
             e.preventDefault();
             const t = e.touches[0];
-            movePress(t.clientX, t.clientY);
+            moveStampDrag(t.clientX, t.clientY);
           }, { passive: false });
 
           btn.addEventListener("touchend", function (e) {
             const t = e.changedTouches && e.changedTouches[0];
-            endPress(t ? t.clientX : undefined, t ? t.clientY : undefined);
+            endStampDrag(t ? t.clientX : undefined, t ? t.clientY : undefined);
           });
 
           btn.addEventListener("touchcancel", function () {
-            endPress();
+            endStampDrag();
           });
 
           btn.addEventListener("mousedown", function (e) {
             if (e.button !== 0) return;
             beginPress();
-          });
-
-          window.addEventListener("mousemove", function (e) {
-            if (draggingStampId) movePress(e.clientX, e.clientY);
-          });
-
-          window.addEventListener("mouseup", function (e) {
-            if (draggingStampId) endPress(e.clientX, e.clientY);
           });
 
           listEl.appendChild(btn);
@@ -891,10 +867,1293 @@
 
       renderStampBar();
 
-      trashBtn.addEventListener("click", function () {
-        if (!selectedStampId) return;
-        deleteStampById(selectedStampId);
+      document.querySelectorAll(".cat-btn").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          selectedCategory = btn.getAttribute("data-cat") || "architectural";
+          document.querySelectorAll(".cat-btn").forEach(function (b) {
+            b.classList.toggle("active", b.getAttribute("data-cat") === selectedCategory);
+          });
+          const catStamps = getCategoryStamps();
+          if (catStamps.length && !catStamps.some(function (s) { return s.id === selectedStampId; })) {
+            selectedStampId = catStamps[0].id;
+          }
+          renderStampBar();
+          render();
+          const st = getSelectedStamp();
+          setStatus("区分「" + CATEGORY_NAMES[selectedCategory] + "」" + (st ? "（選択中: " + st.name + "）" : ""));
+        });
       });
+
+      const btnFlipStamp = document.getElementById("btn-flip-stamp");
+      if (btnFlipStamp) {
+        btnFlipStamp.addEventListener("click", function () {
+          const st = getSelectedStamp();
+          if (!st) return;
+          st.flipped = !st.flipped;
+          renderStampBar();
+          render();
+          setStatus("記号「" + st.name + "」を上下180度回転しました（" + (st.flipped ? "反転中" : "通常向き") + "）");
+        });
+      }
+
+      if (trashBtn) {
+        trashBtn.addEventListener("click", function () {
+          if (!selectedStampId) return;
+          deleteStampById(selectedStampId);
+        });
+      }
 
       function getLogicalSize(page) {
         const p = page || currentPage();
+        return p.orientation === "portrait"
+          ? { width: A4_SHORT, height: A4_LONG }
+          : { width: A4_LONG, height: A4_SHORT };
+      }
+
+      function updateZoomLabel() {
+        const zoomLabel = document.getElementById("zoom-label");
+        if (zoomLabel) {
+          zoomLabel.textContent = Math.round(zoomLevel * 100) + "%";
+        }
+      }
+
+      function setZoom(nextZoom) {
+        zoomLevel = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, Math.round(nextZoom * 100) / 100));
+        updateZoomLabel();
+        resizeCanvasDisplay();
+      }
+
+      const btnZoomIn = document.getElementById("zoom-in");
+      if (btnZoomIn) {
+        btnZoomIn.addEventListener("click", function () {
+          setZoom(zoomLevel + ZOOM_STEP);
+          logStatus("拡大: " + Math.round(zoomLevel * 100) + "%");
+        });
+      }
+
+      const btnZoomOut = document.getElementById("zoom-out");
+      if (btnZoomOut) {
+        btnZoomOut.addEventListener("click", function () {
+          setZoom(zoomLevel - ZOOM_STEP);
+          logStatus("縮小: " + Math.round(zoomLevel * 100) + "%");
+        });
+      }
+
+      const btnZoomReset = document.getElementById("zoom-reset");
+      if (btnZoomReset) {
+        btnZoomReset.addEventListener("click", function () {
+          setZoom(1.0);
+          workspace.scrollLeft = 0;
+          workspace.scrollTop = 0;
+          logStatus("表示倍率 100%");
+        });
+      }
+
+      workspace.addEventListener("wheel", function (e) {
+        if (!e.ctrlKey && !e.metaKey) return;
+        e.preventDefault();
+        const delta = e.deltaY < 0 ? 0.15 : -0.15;
+        setZoom(zoomLevel + delta);
+      }, { passive: false });
+
+      function pushHistory(page) {
+        const p = page || currentPage();
+        p.undoStack.push(JSON.stringify(p.elements));
+        if (p.undoStack.length > 50) p.undoStack.shift();
+        p.redoStack = [];
+        updateUIState();
+      }
+
+      function undo() {
+        const p = currentPage();
+        if (!p.undoStack.length) return;
+        p.redoStack.push(JSON.stringify(p.elements));
+        p.elements = JSON.parse(p.undoStack.pop());
+        render();
+        updateUIState();
+      }
+
+      function redo() {
+        const p = currentPage();
+        if (!p.redoStack.length) return;
+        p.undoStack.push(JSON.stringify(p.elements));
+        p.elements = JSON.parse(p.redoStack.pop());
+        render();
+        updateUIState();
+      }
+
+      function resizeCanvasDisplay() {
+        const p = currentPage();
+        const size = getLogicalSize(p);
+        canvas.width = size.width;
+        canvas.height = size.height;
+
+        const wsRect = workspace.getBoundingClientRect();
+        const availW = Math.max(180, (wsRect.width || window.innerWidth) - 24);
+        const availH = Math.max(220, (wsRect.height || window.innerHeight * 0.5) - 24);
+        const baseScale = Math.min(availW / size.width, availH / size.height);
+        const effectiveScale = baseScale * zoomLevel;
+
+        const dispW = Math.max(100, Math.floor(size.width * effectiveScale));
+        const dispH = Math.max(120, Math.floor(size.height * effectiveScale));
+
+        paperWrapper.style.width = dispW + "px";
+        paperWrapper.style.height = dispH + "px";
+
+        render();
+      }
+
+      function clientToCanvas(clientX, clientY) {
+        const rect = canvas.getBoundingClientRect();
+        const w = rect.width || 1;
+        const h = rect.height || 1;
+        return {
+          x: ((clientX - rect.left) / w) * canvas.width,
+          y: ((clientY - rect.top) / h) * canvas.height
+        };
+      }
+
+      function pointToSegmentDist(p, a, b) {
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const lenSq = dx * dx + dy * dy;
+        if (lenSq === 0) return Math.hypot(p.x - a.x, p.y - a.y);
+        let t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / lenSq;
+        t = Math.max(0, Math.min(1, t));
+        return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
+      }
+
+      function recognizeShape(points, color, width) {
+        if (!autoShape || !points || points.length < 5) {
+          return { type: "stroke", points: points || [], color: color, width: width };
+        }
+
+        let pathLen = 0;
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        for (let i = 0; i < points.length; i++) {
+          const pt = points[i];
+          if (pt.x < minX) minX = pt.x;
+          if (pt.y < minY) minY = pt.y;
+          if (pt.x > maxX) maxX = pt.x;
+          if (pt.y > maxY) maxY = pt.y;
+          if (i > 0) {
+            pathLen += Math.hypot(pt.x - points[i - 1].x, pt.y - points[i - 1].y);
+          }
+        }
+
+        if (pathLen < 35) {
+          return { type: "stroke", points: points, color: color, width: width };
+        }
+
+        const first = points[0];
+        const last = points[points.length - 1];
+        const endDist = Math.hypot(last.x - first.x, last.y - first.y);
+        const boxW = maxX - minX;
+        const boxH = maxY - minY;
+        const boxDiag = Math.hypot(boxW, boxH);
+
+        if (endDist > 40 && endDist / pathLen > 0.92) {
+          let maxPerp = 0;
+          for (let i = 0; i < points.length; i++) {
+            const d = pointToSegmentDist(points[i], first, last);
+            if (d > maxPerp) maxPerp = d;
+          }
+          if (maxPerp / endDist < 0.07) {
+            let x2 = last.x;
+            let y2 = last.y;
+            const deg = Math.abs(Math.atan2(y2 - first.y, x2 - first.x) * 180 / Math.PI);
+            if (deg < 4 || deg > 176) y2 = first.y;
+            if (Math.abs(deg - 90) < 4) x2 = first.x;
+            return { type: "line", x1: first.x, y1: first.y, x2: x2, y2: y2, color: color, width: width };
+          }
+        }
+
+        const isClosed = endDist < Math.max(45, boxDiag * 0.24) && boxW > 30 && boxH > 30;
+        if (!isClosed) {
+          return { type: "stroke", points: points, color: color, width: width };
+        }
+
+        let area = 0;
+        for (let i = 0; i < points.length; i++) {
+          const j = (i + 1) % points.length;
+          area += points[i].x * points[j].y - points[j].x * points[i].y;
+        }
+        area = Math.abs(area) / 2;
+        const areaRatio = area / Math.max(1, boxW * boxH);
+
+        const cx = (minX + maxX) / 2;
+        const cy = (minY + maxY) / 2;
+        const rx = Math.max(1, boxW / 2);
+        const ry = Math.max(1, boxH / 2);
+
+        let sumR = 0;
+        const radii = [];
+        for (let i = 0; i < points.length; i++) {
+          const r = Math.hypot((points[i].x - cx) / rx, (points[i].y - cy) / ry);
+          radii.push(r);
+          sumR += r;
+        }
+        const meanR = sumR / radii.length;
+        let sqSum = 0;
+        for (let i = 0; i < radii.length; i++) {
+          sqSum += Math.pow(radii[i] - meanR, 2);
+        }
+        const cvR = Math.sqrt(sqSum / radii.length) / Math.max(0.0001, meanR);
+
+        if (cvR < 0.14 && areaRatio > 0.64 && areaRatio < 0.89) {
+          const ratio = boxW / Math.max(1, boxH);
+          if (ratio > 0.88 && ratio < 1.12) {
+            const r = (rx + ry) / 2;
+            return { type: "ellipse", cx: cx, cy: cy, rx: r, ry: r, color: color, width: width };
+          }
+          return { type: "ellipse", cx: cx, cy: cy, rx: rx, ry: ry, color: color, width: width };
+        }
+
+        if (areaRatio >= 0.78 && areaRatio <= 1.08) {
+          return { type: "rect", x: minX, y: minY, w: boxW, h: boxH, color: color, width: width };
+        }
+
+        return { type: "stroke", points: points, color: color, width: width };
+      }
+
+      function hitTestElement(el, pos) {
+        const r = ERASER_RADIUS;
+        if (el.type === "stroke") {
+          for (let i = 0; i < el.points.length; i++) {
+            const p = el.points[i];
+            if (Math.hypot(p.x - pos.x, p.y - pos.y) <= r + (el.width || 2) * 0.5) return true;
+            if (i > 0 && pointToSegmentDist(pos, el.points[i - 1], p) <= r + (el.width || 2) * 0.5) return true;
+          }
+          return false;
+        }
+        if (el.type === "line") {
+          return pointToSegmentDist(pos, { x: el.x1, y: el.y1 }, { x: el.x2, y: el.y2 }) <= r + (el.width || 2) * 0.5;
+        }
+        if (el.type === "rect") {
+          const tol = r + (el.width || 2) * 0.5;
+          const p1 = { x: el.x, y: el.y };
+          const p2 = { x: el.x + el.w, y: el.y };
+          const p3 = { x: el.x + el.w, y: el.y + el.h };
+          const p4 = { x: el.x, y: el.y + el.h };
+          return (
+            pointToSegmentDist(pos, p1, p2) <= tol ||
+            pointToSegmentDist(pos, p2, p3) <= tol ||
+            pointToSegmentDist(pos, p3, p4) <= tol ||
+            pointToSegmentDist(pos, p4, p1) <= tol
+          );
+        }
+        if (el.type === "ellipse") {
+          const norm = Math.hypot((pos.x - el.cx) / Math.max(1, el.rx), (pos.y - el.cy) / Math.max(1, el.ry));
+          const avgR = (el.rx + el.ry) / 2;
+          return Math.abs(norm - 1) * avgR <= r + (el.width || 2) * 0.5;
+        }
+        if (el.type === "dimension") {
+          if (pointToSegmentDist(pos, { x: el.x1, y: el.y1 }, { x: el.x2, y: el.y2 }) <= r + 3) return true;
+          const mx = (el.x1 + el.x2) / 2;
+          const my = (el.y1 + el.y2) / 2;
+          return Math.hypot(pos.x - mx, pos.y - my) <= r + 18;
+        }
+        if (el.type === "stamp") {
+          const halfW = (el.w || 68) / 2;
+          const halfH = (el.h || 46) / 2;
+          return (
+            pos.x >= el.x - halfW - r &&
+            pos.x <= el.x + halfW + r &&
+            pos.y >= el.y - halfH - r &&
+            pos.y <= el.y + halfH + r
+          );
+        }
+        return false;
+      }
+
+      function findDimensionAt(pos) {
+        const els = currentPage().elements;
+        for (let i = els.length - 1; i >= 0; i--) {
+          const el = els[i];
+          if (el.type === "dimension") {
+            const mx = (el.x1 + el.x2) / 2;
+            const my = (el.y1 + el.y2) / 2;
+            if (Math.hypot(pos.x - mx, pos.y - my) <= 45) return el;
+          }
+        }
+        return null;
+      }
+
+      function eraseAt(pos) {
+        const p = currentPage();
+        const before = p.elements.length;
+        const nextEls = p.elements.filter(function (el) {
+          return !hitTestElement(el, pos);
+        });
+        if (nextEls.length !== before) {
+          if (!eraserErasedInDrag) {
+            pushHistory(p);
+            eraserErasedInDrag = true;
+          }
+          p.elements = nextEls;
+          render();
+        }
+      }
+
+      function placeStampAt(pos) {
+        const st = getSelectedStamp();
+        if (!st) return;
+        const p = currentPage();
+        pushHistory(p);
+        p.elements.push({
+          type: "stamp",
+          x: pos.x,
+          y: pos.y,
+          w: 68,
+          h: 46,
+          name: st.name,
+          kind: st.kind,
+          category: st.category || selectedCategory,
+          flipped: !!st.flipped,
+          color: penColor
+        });
+        render();
+        logStatus("記号配置: " + st.name);
+      }
+
+      function drawGrid(targetCtx, w, h) {
+        const step = 40;
+        targetCtx.save();
+        targetCtx.strokeStyle = "#e2e8f0";
+        targetCtx.lineWidth = 1;
+        targetCtx.beginPath();
+        for (let x = step; x < w; x += step) {
+          targetCtx.moveTo(x, 0);
+          targetCtx.lineTo(x, h);
+        }
+        for (let y = step; y < h; y += step) {
+          targetCtx.moveTo(0, y);
+          targetCtx.lineTo(w, y);
+        }
+        targetCtx.stroke();
+        targetCtx.restore();
+      }
+
+      function drawStamp(targetCtx, el, isPreview) {
+        const x = el.x;
+        const y = el.y;
+        const w = el.w || 68;
+        const h = el.h || 46;
+        const col = el.color || "#111827";
+        const flipped = !!el.flipped;
+
+        targetCtx.save();
+        if (isPreview) targetCtx.globalAlpha = 0.65;
+        targetCtx.strokeStyle = col;
+        targetCtx.fillStyle = "#ffffff";
+        targetCtx.lineWidth = 2.4;
+
+        targetCtx.save();
+        targetCtx.translate(x, y);
+        if (flipped) {
+          targetCtx.scale(1, -1);
+        }
+
+        if (el.kind === "door") {
+          const span = 28;
+          const hx = -span / 2;
+          const hy = 10;
+          targetCtx.beginPath();
+          targetCtx.moveTo(hx, hy - 8);
+          targetCtx.lineTo(hx, hy + 8);
+          targetCtx.moveTo(hx + span, hy - 8);
+          targetCtx.lineTo(hx + span, hy + 8);
+          targetCtx.moveTo(hx, hy);
+          targetCtx.lineTo(hx, hy - span);
+          targetCtx.stroke();
+
+          targetCtx.save();
+          targetCtx.setLineDash([4, 3]);
+          targetCtx.beginPath();
+          targetCtx.arc(hx, hy, span, -Math.PI / 2, 0, false);
+          targetCtx.stroke();
+          targetCtx.restore();
+        } else if (el.kind === "receiver") {
+          const rw = w;
+          const rh = h * 0.78;
+          const rx = -rw / 2;
+          const ry = -rh / 2;
+          targetCtx.fillRect(rx, ry, rw, rh);
+          targetCtx.strokeRect(rx, ry, rw, rh);
+          targetCtx.beginPath();
+          targetCtx.moveTo(rx, ry);
+          targetCtx.lineTo(rx + rw, ry + rh);
+          targetCtx.moveTo(rx + rw, ry);
+          targetCtx.lineTo(rx, ry + rh);
+          targetCtx.moveTo(rx, 0);
+          targetCtx.lineTo(rx + rw, 0);
+          targetCtx.stroke();
+        } else if (el.kind === "general_panel") {
+          const rw = w * 1.15;
+          const rh = h * 0.82;
+          const rx = -rw / 2;
+          const ry = -rh / 2;
+          targetCtx.fillRect(rx, ry, rw, rh);
+          targetCtx.strokeRect(rx, ry, rw, rh);
+          targetCtx.strokeRect(rx + 4, ry + 4, rw - 8, rh - 8);
+          targetCtx.beginPath();
+          targetCtx.moveTo(rx + rw / 3, ry + 4);
+          targetCtx.lineTo(rx + rw / 3, ry + rh - 4);
+          targetCtx.moveTo(rx + (rw * 2) / 3, ry + 4);
+          targetCtx.lineTo(rx + (rw * 2) / 3, ry + rh - 4);
+          targetCtx.stroke();
+        } else if (el.kind === "detector_diff") {
+          const rad = 22;
+          const cy = 6;
+          targetCtx.beginPath();
+          targetCtx.arc(0, cy, rad, Math.PI, 0, false);
+          targetCtx.closePath();
+          targetCtx.fill();
+          targetCtx.stroke();
+          targetCtx.beginPath();
+          targetCtx.moveTo(-rad + 5, cy - rad * 0.52);
+          targetCtx.lineTo(rad - 5, cy - rad * 0.52);
+          targetCtx.stroke();
+        } else if (el.kind === "detector_fixed") {
+          const rad = 22;
+          const cy = 6;
+          targetCtx.beginPath();
+          targetCtx.arc(0, cy, rad, Math.PI, 0, false);
+          targetCtx.closePath();
+          targetCtx.fill();
+          targetCtx.stroke();
+          targetCtx.beginPath();
+          targetCtx.moveTo(0, cy - rad);
+          targetCtx.lineTo(0, cy);
+          targetCtx.stroke();
+        } else if (el.kind === "detector_tokuroku") {
+          const rad = 22;
+          const cy = 6;
+          targetCtx.beginPath();
+          targetCtx.arc(0, cy, rad, Math.PI, 0, false);
+          targetCtx.closePath();
+          targetCtx.fill();
+          targetCtx.stroke();
+        } else if (el.kind === "detector_smoke") {
+          const sw = 38;
+          const sh = 38;
+          targetCtx.fillRect(-sw / 2, -sh / 2, sw, sh);
+          targetCtx.strokeRect(-sw / 2, -sh / 2, sw, sh);
+          targetCtx.fillStyle = col;
+          targetCtx.font = "bold 20px sans-serif";
+          targetCtx.textAlign = "center";
+          targetCtx.textBaseline = "middle";
+          targetCtx.fillText("S", 0, 1);
+        } else if (el.kind === "water_faucet") {
+          targetCtx.beginPath();
+          targetCtx.arc(0, 0, 14, 0, Math.PI * 2);
+          targetCtx.fill();
+          targetCtx.stroke();
+          targetCtx.beginPath();
+          targetCtx.moveTo(14, 0);
+          targetCtx.lineTo(24, -6);
+          targetCtx.stroke();
+        } else if (el.kind === "water_valve") {
+          targetCtx.beginPath();
+          targetCtx.moveTo(-16, -12);
+          targetCtx.lineTo(16, 12);
+          targetCtx.lineTo(16, -12);
+          targetCtx.lineTo(-16, 12);
+          targetCtx.closePath();
+          targetCtx.fill();
+          targetCtx.stroke();
+        } else if (el.kind === "elec_outlet") {
+          targetCtx.beginPath();
+          targetCtx.arc(0, 0, 14, 0, Math.PI * 2);
+          targetCtx.fill();
+          targetCtx.stroke();
+          targetCtx.beginPath();
+          targetCtx.moveTo(0, -14);
+          targetCtx.lineTo(0, 14);
+          targetCtx.stroke();
+        } else if (el.kind === "elec_light") {
+          targetCtx.beginPath();
+          targetCtx.arc(0, 0, 16, 0, Math.PI * 2);
+          targetCtx.fill();
+          targetCtx.stroke();
+          targetCtx.beginPath();
+          targetCtx.moveTo(-11, -11);
+          targetCtx.lineTo(11, 11);
+          targetCtx.moveTo(11, -11);
+          targetCtx.lineTo(-11, 11);
+          targetCtx.stroke();
+        } else {
+          const pw = 44;
+          const ph = 40;
+          const px = -pw / 2;
+          const py = -ph / 2;
+          targetCtx.fillRect(px, py, pw, ph);
+          targetCtx.strokeRect(px, py, pw, ph);
+          targetCtx.beginPath();
+          targetCtx.moveTo(px, py + ph);
+          targetCtx.lineTo(px + pw, py);
+          targetCtx.stroke();
+        }
+
+        targetCtx.restore();
+
+        targetCtx.fillStyle = col;
+        targetCtx.font = "bold 15px sans-serif";
+        targetCtx.textAlign = "center";
+        targetCtx.textBaseline = "top";
+        targetCtx.fillText(el.name || "", x, y + h / 2 + 2);
+
+        targetCtx.restore();
+      }
+
+      function drawDimension(targetCtx, el) {
+        const x1 = el.x1, y1 = el.y1, x2 = el.x2, y2 = el.y2;
+        const angle = Math.atan2(y2 - y1, x2 - x1);
+        const arrowLen = 18;
+        const arrowAngle = Math.PI / 7;
+
+        targetCtx.save();
+        targetCtx.strokeStyle = el.color || "#111827";
+        targetCtx.fillStyle = el.color || "#111827";
+        targetCtx.lineWidth = 2.4;
+
+        targetCtx.beginPath();
+        targetCtx.moveTo(x1, y1);
+        targetCtx.lineTo(x2, y2);
+        targetCtx.stroke();
+
+        targetCtx.beginPath();
+        targetCtx.moveTo(x1, y1);
+        targetCtx.lineTo(x1 + arrowLen * Math.cos(angle - arrowAngle), y1 + arrowLen * Math.sin(angle - arrowAngle));
+        targetCtx.lineTo(x1 + arrowLen * Math.cos(angle + arrowAngle), y1 + arrowLen * Math.sin(angle + arrowAngle));
+        targetCtx.closePath();
+        targetCtx.fill();
+
+        targetCtx.beginPath();
+        targetCtx.moveTo(x2, y2);
+        targetCtx.lineTo(x2 - arrowLen * Math.cos(angle - arrowAngle), y2 - arrowLen * Math.sin(angle - arrowAngle));
+        targetCtx.lineTo(x2 - arrowLen * Math.cos(angle + arrowAngle), y2 - arrowLen * Math.sin(angle + arrowAngle));
+        targetCtx.closePath();
+        targetCtx.fill();
+
+        const label = (el.text && el.text.trim()) ? el.text.trim() : "寸法";
+        const mx = (x1 + x2) / 2;
+        const my = (y1 + y2) / 2;
+
+        targetCtx.font = "bold 24px sans-serif";
+        targetCtx.textAlign = "center";
+        targetCtx.textBaseline = "middle";
+        const metrics = targetCtx.measureText(label);
+        const boxW = metrics.width + 20;
+        const boxH = 34;
+
+        targetCtx.fillStyle = "#ffffff";
+        targetCtx.fillRect(mx - boxW / 2, my - boxH / 2, boxW, boxH);
+        targetCtx.strokeStyle = el.color || "#111827";
+        targetCtx.lineWidth = 1.2;
+        targetCtx.strokeRect(mx - boxW / 2, my - boxH / 2, boxW, boxH);
+
+        targetCtx.fillStyle = el.color || "#111827";
+        targetCtx.fillText(label, mx, my + 1);
+        targetCtx.restore();
+      }
+
+      function drawElement(targetCtx, el) {
+        targetCtx.save();
+        targetCtx.strokeStyle = el.color || "#111827";
+        targetCtx.fillStyle = el.color || "#111827";
+        targetCtx.lineWidth = el.width || 2.4;
+        targetCtx.lineCap = "round";
+        targetCtx.lineJoin = "round";
+
+        if (el.type === "stroke") {
+          if (!el.points || el.points.length === 0) {
+            targetCtx.restore();
+            return;
+          }
+          if (el.points.length === 1) {
+            targetCtx.beginPath();
+            targetCtx.arc(el.points[0].x, el.points[0].y, (el.width || 2.4) / 2, 0, Math.PI * 2);
+            targetCtx.fill();
+          } else {
+            targetCtx.beginPath();
+            targetCtx.moveTo(el.points[0].x, el.points[0].y);
+            for (let i = 1; i < el.points.length; i++) {
+              targetCtx.lineTo(el.points[i].x, el.points[i].y);
+            }
+            targetCtx.stroke();
+          }
+        } else if (el.type === "line") {
+          targetCtx.beginPath();
+          targetCtx.moveTo(el.x1, el.y1);
+          targetCtx.lineTo(el.x2, el.y2);
+          targetCtx.stroke();
+        } else if (el.type === "rect") {
+          targetCtx.strokeRect(el.x, el.y, el.w, el.h);
+        } else if (el.type === "ellipse") {
+          targetCtx.beginPath();
+          targetCtx.ellipse(el.cx, el.cy, el.rx, el.ry, 0, 0, Math.PI * 2);
+          targetCtx.stroke();
+        } else if (el.type === "dimension") {
+          drawDimension(targetCtx, el);
+        } else if (el.type === "stamp") {
+          drawStamp(targetCtx, el, false);
+        }
+        targetCtx.restore();
+      }
+
+      function renderPageToCanvas(page, targetCanvas, withGrid) {
+        const size = getLogicalSize(page);
+        targetCanvas.width = size.width;
+        targetCanvas.height = size.height;
+        const tCtx = targetCanvas.getContext("2d");
+        tCtx.fillStyle = "#ffffff";
+        tCtx.fillRect(0, 0, size.width, size.height);
+        if (withGrid) drawGrid(tCtx, size.width, size.height);
+        for (let i = 0; i < page.elements.length; i++) {
+          drawElement(tCtx, page.elements[i]);
+        }
+      }
+
+      function render() {
+        renderPageToCanvas(currentPage(), canvas, showGrid);
+
+        if (isDrawing && tool === "pen" && currentPoints.length > 0) {
+          drawElement(ctx, {
+            type: "stroke",
+            points: currentPoints,
+            color: penColor,
+            width: penWidth
+          });
+        }
+
+        if (isDrawing && tool === "dim" && dimStart && dimCurrent) {
+          drawDimension(ctx, {
+            x1: dimStart.x,
+            y1: dimStart.y,
+            x2: dimCurrent.x,
+            y2: dimCurrent.y,
+            text: "...",
+            color: penColor
+          });
+        }
+
+        if (tool === "stamp" && stampHoverPos) {
+          const st = getSelectedStamp();
+          if (st) {
+            drawStamp(ctx, {
+              x: stampHoverPos.x,
+              y: stampHoverPos.y,
+              w: 68,
+              h: 46,
+              name: st.name,
+              kind: st.kind,
+              flipped: !!st.flipped,
+              color: penColor
+            }, true);
+          }
+        }
+
+        if (tool === "eraser" && eraserPos) {
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(eraserPos.x, eraserPos.y, ERASER_RADIUS, 0, Math.PI * 2);
+          ctx.fillStyle = "rgba(239, 68, 68, 0.16)";
+          ctx.fill();
+          ctx.strokeStyle = "#ef4444";
+          ctx.lineWidth = 2;
+          ctx.stroke();
+          ctx.restore();
+        }
+      }
+
+      function handleStart(pos, mode) {
+        if (inputMode && inputMode !== mode) return;
+        inputMode = mode;
+
+        if (tool === "stamp") {
+          stampHoverPos = pos;
+          placeStampAt(pos);
+          inputMode = null;
+          return;
+        }
+
+        if (tool === "eraser") {
+          isDrawing = true;
+          eraserErasedInDrag = false;
+          eraserPos = pos;
+          eraseAt(pos);
+          render();
+          return;
+        }
+
+        if (tool === "dim") {
+          const hitDim = findDimensionAt(pos);
+          if (hitDim) {
+            inputMode = null;
+            openDimModal(hitDim, false);
+            return;
+          }
+          isDrawing = true;
+          dimStart = pos;
+          dimCurrent = pos;
+          render();
+          return;
+        }
+
+        isDrawing = true;
+        currentPoints = [pos];
+        render();
+      }
+
+      function handleMove(pos, mode) {
+        if (inputMode && inputMode !== mode) return;
+
+        if (tool === "stamp") {
+          stampHoverPos = pos;
+          render();
+          return;
+        }
+
+        if (tool === "eraser") {
+          eraserPos = pos;
+          if (isDrawing) eraseAt(pos);
+          render();
+          return;
+        }
+
+        if (!isDrawing) return;
+
+        if (tool === "dim" && dimStart) {
+          let x2 = pos.x;
+          let y2 = pos.y;
+          const deg = Math.abs(Math.atan2(y2 - dimStart.y, x2 - dimStart.x) * 180 / Math.PI);
+          if (deg < 5 || deg > 175) y2 = dimStart.y;
+          if (Math.abs(deg - 90) < 5) x2 = dimStart.x;
+          dimCurrent = { x: x2, y: y2 };
+          render();
+          return;
+        }
+
+        if (tool === "pen") {
+          currentPoints.push(pos);
+          render();
+        }
+      }
+
+      function handleEnd(mode) {
+        if (inputMode && inputMode !== mode) return;
+        inputMode = null;
+
+        if (tool === "stamp") {
+          return;
+        }
+
+        if (tool === "eraser") {
+          isDrawing = false;
+          eraserErasedInDrag = false;
+          render();
+          return;
+        }
+
+        if (!isDrawing) return;
+        isDrawing = false;
+
+        if (tool === "dim" && dimStart && dimCurrent) {
+          const dist = Math.hypot(dimCurrent.x - dimStart.x, dimCurrent.y - dimStart.y);
+          const s = dimStart;
+          const c = dimCurrent;
+          dimStart = null;
+          dimCurrent = null;
+          if (dist > 25) {
+            openDimModal({
+              type: "dimension",
+              x1: s.x,
+              y1: s.y,
+              x2: c.x,
+              y2: c.y,
+              text: "",
+              color: penColor
+            }, true);
+          } else {
+            render();
+          }
+          return;
+        }
+
+        if (tool === "pen" && currentPoints.length > 0) {
+          const p = currentPage();
+          pushHistory(p);
+          const shape = recognizeShape(currentPoints, penColor, penWidth);
+          p.elements.push(shape);
+          currentPoints = [];
+          render();
+        }
+      }
+
+      canvas.addEventListener("touchstart", function (e) {
+        if (!e.touches || e.touches.length === 0) return;
+        e.preventDefault();
+        const t = e.touches[0];
+        handleStart(clientToCanvas(t.clientX, t.clientY), "touch");
+      }, { passive: false });
+
+      canvas.addEventListener("touchmove", function (e) {
+        if (!e.touches || e.touches.length === 0) return;
+        e.preventDefault();
+        const t = e.touches[0];
+        handleMove(clientToCanvas(t.clientX, t.clientY), "touch");
+      }, { passive: false });
+
+      canvas.addEventListener("touchend", function (e) {
+        e.preventDefault();
+        handleEnd("touch");
+      }, { passive: false });
+
+      canvas.addEventListener("touchcancel", function (e) {
+        e.preventDefault();
+        handleEnd("touch");
+      }, { passive: false });
+
+      canvas.addEventListener("pointerdown", function (e) {
+        if (e.pointerType === "touch") return;
+        handleStart(clientToCanvas(e.clientX, e.clientY), "pointer");
+      });
+
+      canvas.addEventListener("pointermove", function (e) {
+        if (e.pointerType === "touch") return;
+        handleMove(clientToCanvas(e.clientX, e.clientY), "pointer");
+      });
+
+      canvas.addEventListener("pointerup", function (e) {
+        if (e.pointerType === "touch") return;
+        handleEnd("pointer");
+      });
+
+      canvas.addEventListener("pointercancel", function (e) {
+        if (e.pointerType === "touch") return;
+        handleEnd("pointer");
+      });
+
+      const dimModal = document.getElementById("dim-modal");
+      const dimInput = document.getElementById("dim-input");
+
+      function openDimModal(dimObj, isNew) {
+        pendingDimTarget = dimObj;
+        isNewDim = isNew;
+        if (dimInput) dimInput.value = dimObj.text || "";
+        if (dimModal) dimModal.classList.add("open");
+        setTimeout(function () {
+          try { if (dimInput) dimInput.focus(); } catch (_) {}
+        }, 50);
+      }
+
+      function closeDimModal() {
+        if (dimModal) dimModal.classList.remove("open");
+        pendingDimTarget = null;
+        render();
+      }
+
+      document.querySelectorAll(".unit-chip").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          if (!dimInput) return;
+          const u = btn.getAttribute("data-unit") || "";
+          if (u === "φ") {
+            dimInput.value = "φ" + dimInput.value;
+          } else {
+            dimInput.value = dimInput.value + u;
+          }
+        });
+      });
+
+      const dimOkBtn = document.getElementById("dim-ok");
+      if (dimOkBtn) {
+        dimOkBtn.addEventListener("click", function () {
+          if (!pendingDimTarget) return;
+          const p = currentPage();
+          pushHistory(p);
+          pendingDimTarget.text = ((dimInput && dimInput.value) || "").trim() || "寸法";
+          if (isNewDim) p.elements.push(pendingDimTarget);
+          closeDimModal();
+        });
+      }
+
+      const dimCancelBtn = document.getElementById("dim-cancel");
+      if (dimCancelBtn) dimCancelBtn.addEventListener("click", closeDimModal);
+
+      const clearModal = document.getElementById("clear-modal");
+      const btnClear = document.getElementById("btn-clear");
+      if (btnClear) {
+        btnClear.addEventListener("click", function () {
+          const p = currentPage();
+          if (!p.elements.length) return;
+          if (clearModal) clearModal.classList.add("open");
+        });
+      }
+
+      const clearCancelBtn = document.getElementById("clear-cancel");
+      if (clearCancelBtn) {
+        clearCancelBtn.addEventListener("click", function () {
+          if (clearModal) clearModal.classList.remove("open");
+        });
+      }
+
+      const clearConfirmBtn = document.getElementById("clear-confirm");
+      if (clearConfirmBtn) {
+        clearConfirmBtn.addEventListener("click", function () {
+          if (clearModal) clearModal.classList.remove("open");
+          const p = currentPage();
+          if (!p.elements.length) return;
+          pushHistory(p);
+          p.elements = [];
+          render();
+          logStatus("全消去しました");
+        });
+      }
+
+      const stampSaveModal = document.getElementById("stamp-save-modal");
+      const customStampCat = document.getElementById("custom-stamp-cat");
+      const customStampKind = document.getElementById("custom-stamp-kind");
+      const customStampLabel = document.getElementById("custom-stamp-label");
+
+      const btnAddStamp = document.getElementById("btn-add-stamp");
+      if (btnAddStamp) {
+        btnAddStamp.addEventListener("click", function () {
+          if (customStampCat) customStampCat.value = selectedCategory;
+          if (customStampLabel) customStampLabel.value = "";
+          if (stampSaveModal) stampSaveModal.classList.add("open");
+          setTimeout(function () {
+            try { if (customStampLabel) customStampLabel.focus(); } catch (_) {}
+          }, 50);
+        });
+      }
+
+      const stampSaveCancelBtn = document.getElementById("stamp-save-cancel");
+      if (stampSaveCancelBtn) {
+        stampSaveCancelBtn.addEventListener("click", function () {
+          if (stampSaveModal) stampSaveModal.classList.remove("open");
+        });
+      }
+
+      const stampSaveOkBtn = document.getElementById("stamp-save-ok");
+      if (stampSaveOkBtn) {
+        stampSaveOkBtn.addEventListener("click", function () {
+          const cat = (customStampCat && customStampCat.value) || selectedCategory;
+          const kind = (customStampKind && customStampKind.value) || "door";
+          const name = ((customStampLabel && customStampLabel.value) || "").trim() || "カスタム記号";
+          const newStamp = {
+            id: "st_" + Date.now() + "_" + Math.floor(Math.random() * 1000),
+            name: name,
+            kind: kind,
+            category: cat,
+            flipped: false
+          };
+          stampPresets.push(newStamp);
+          selectedCategory = cat;
+          document.querySelectorAll(".cat-btn").forEach(function (b) {
+            b.classList.toggle("active", b.getAttribute("data-cat") === selectedCategory);
+          });
+          selectedStampId = newStamp.id;
+          renderStampBar();
+          if (stampSaveModal) stampSaveModal.classList.remove("open");
+          setStatus("「" + CATEGORY_NAMES[cat] + "」に記号「" + name + "」を保存しました");
+        });
+      }
+
+      const stampPanel = document.getElementById("stamp-panel");
+      function setTool(nextTool) {
+        tool = nextTool;
+        eraserPos = null;
+        stampHoverPos = null;
+        const tPen = document.getElementById("tool-pen");
+        const tStamp = document.getElementById("tool-stamp");
+        const tDim = document.getElementById("tool-dim");
+        const tEraser = document.getElementById("tool-eraser");
+        if (tPen) tPen.classList.toggle("active", tool === "pen");
+        if (tStamp) tStamp.classList.toggle("active", tool === "stamp");
+        if (tDim) tDim.classList.toggle("active", tool === "dim");
+        if (tEraser) tEraser.classList.toggle("active", tool === "eraser");
+        if (stampPanel) stampPanel.classList.toggle("hidden", tool !== "stamp");
+
+        if (tool === "pen") {
+          setStatus("ペンモード：丸・四角・直線を描くと自動で図面化します");
+        } else if (tool === "stamp") {
+          setStatus("記号スタンプモード：建築設備・消防設備・水道・電気から選択してタップ配置");
+        } else if (tool === "dim") {
+          setStatus("寸法線モード：ドラッグで両矢印を引き、数字を入力します");
+        } else if (tool === "eraser") {
+          setStatus("消しゴムモード：消したい線・図形・記号・寸法線をなぞると消えます");
+        }
+        resizeCanvasDisplay();
+      }
+
+      const toolPen = document.getElementById("tool-pen");
+      const toolStamp = document.getElementById("tool-stamp");
+      const toolDim = document.getElementById("tool-dim");
+      const toolEraser = document.getElementById("tool-eraser");
+      if (toolPen) toolPen.addEventListener("click", function () { setTool("pen"); });
+      if (toolStamp) toolStamp.addEventListener("click", function () { setTool("stamp"); });
+      if (toolDim) toolDim.addEventListener("click", function () { setTool("dim"); });
+      if (toolEraser) toolEraser.addEventListener("click", function () { setTool("eraser"); });
+
+      const btnShape = document.getElementById("toggle-shape");
+      if (btnShape) {
+        btnShape.addEventListener("click", function () {
+          autoShape = !autoShape;
+          btnShape.textContent = autoShape ? "✨ 図形認識: ON" : "✍️ 図形認識: OFF";
+          btnShape.classList.toggle("toggle-on", autoShape);
+        });
+      }
+
+      document.querySelectorAll(".color-dot").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          document.querySelectorAll(".color-dot").forEach(function (b) { b.classList.remove("active"); });
+          btn.classList.add("active");
+          penColor = btn.getAttribute("data-color") || "#111827";
+          render();
+        });
+      });
+
+      document.querySelectorAll(".width-btn").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          document.querySelectorAll(".width-btn").forEach(function (b) { b.classList.remove("active"); });
+          btn.classList.add("active");
+          penWidth = parseFloat(btn.getAttribute("data-width")) || 2.4;
+        });
+      });
+
+      const btnUndo = document.getElementById("btn-undo");
+      const btnRedo = document.getElementById("btn-redo");
+      if (btnUndo) btnUndo.addEventListener("click", undo);
+      if (btnRedo) btnRedo.addEventListener("click", redo);
+
+      function updateUIState() {
+        const p = currentPage();
+        const pageLabel = document.getElementById("page-label");
+        const pagePrev = document.getElementById("page-prev");
+        const pageNext = document.getElementById("page-next");
+        const pageDel = document.getElementById("page-del");
+        const toggleOrient = document.getElementById("toggle-orient");
+
+        if (pageLabel) pageLabel.textContent = (currentPageIndex + 1) + " / " + pages.length + " ページ";
+        if (pagePrev) pagePrev.disabled = currentPageIndex === 0;
+        if (pageNext) pageNext.disabled = currentPageIndex === pages.length - 1;
+        if (pageDel) pageDel.disabled = pages.length <= 1;
+        if (btnUndo) btnUndo.disabled = p.undoStack.length === 0;
+        if (btnRedo) btnRedo.disabled = p.redoStack.length === 0;
+        if (toggleOrient) toggleOrient.textContent = p.orientation === "portrait" ? "📄 A4縦" : "📄 A4横";
+        updateZoomLabel();
+      }
+
+      const pagePrev = document.getElementById("page-prev");
+      const pageNext = document.getElementById("page-next");
+      const pageAdd = document.getElementById("page-add");
+      const pageDup = document.getElementById("page-dup");
+      const pageDel = document.getElementById("page-del");
+      const toggleOrient = document.getElementById("toggle-orient");
+
+      if (pagePrev) {
+        pagePrev.addEventListener("click", function () {
+          if (currentPageIndex > 0) {
+            currentPageIndex--;
+            resizeCanvasDisplay();
+            updateUIState();
+          }
+        });
+      }
+
+      if (pageNext) {
+        pageNext.addEventListener("click", function () {
+          if (currentPageIndex < pages.length - 1) {
+            currentPageIndex++;
+            resizeCanvasDisplay();
+            updateUIState();
+          }
+        });
+      }
+
+      if (pageAdd) {
+        pageAdd.addEventListener("click", function () {
+          pages.splice(currentPageIndex + 1, 0, createPage(currentPage().orientation, []));
+          currentPageIndex++;
+          resizeCanvasDisplay();
+          updateUIState();
+        });
+      }
+
+      if (pageDup) {
+        pageDup.addEventListener("click", function () {
+          const src = currentPage();
+          pages.splice(currentPageIndex + 1, 0, createPage(src.orientation, src.elements));
+          currentPageIndex++;
+          resizeCanvasDisplay();
+          updateUIState();
+          setStatus("現在の図面を " + (currentPageIndex + 1) + " ページ目に複製しました");
+        });
+      }
+
+      if (pageDel) {
+        pageDel.addEventListener("click", function () {
+          if (pages.length <= 1) return;
+          pages.splice(currentPageIndex, 1);
+          if (currentPageIndex >= pages.length) currentPageIndex = pages.length - 1;
+          resizeCanvasDisplay();
+          updateUIState();
+        });
+      }
+
+      if (toggleOrient) {
+        toggleOrient.addEventListener("click", function () {
+          const p = currentPage();
+          p.orientation = p.orientation === "portrait" ? "landscape" : "portrait";
+          resizeCanvasDisplay();
+          updateUIState();
+        });
+      }
+
+      const btnGrid = document.getElementById("toggle-grid");
+      if (btnGrid) {
+        btnGrid.addEventListener("click", function () {
+          showGrid = !showGrid;
+          btnGrid.textContent = showGrid ? "＃ 方眼: ON" : "＃ 方眼: OFF";
+          btnGrid.classList.toggle("toggle-on", showGrid);
+          render();
+        });
+      }
+
+      const btnGridExp = document.getElementById("toggle-grid-export");
+      if (btnGridExp) {
+        btnGridExp.addEventListener("click", function () {
+          includeGridOnExport = !includeGridOnExport;
+          btnGridExp.textContent = includeGridOnExport ? "出力方眼: ON" : "出力方眼: OFF";
+          btnGridExp.classList.toggle("toggle-on", includeGridOnExport);
+        });
+      }
+
+      function openPngFallback(dataUrl, filename) {
+        try {
+          const byteString = atob(dataUrl.split(",")[1]);
+          const mimeString = dataUrl.split(",")[0].split(":")[1].split(";")[0];
+          const ab = new ArrayBuffer(byteString.length);
+          const ia = new Uint8Array(ab);
+          for (let i = 0; i < byteString.length; i++) {
+            ia[i] = byteString.charCodeAt(i);
+          }
+          const blob = new Blob([ab], { type: mimeString });
+          const blobUrl = URL.createObjectURL(blob);
+
+          const a = document.createElement("a");
+          a.href = blobUrl;
+          a.download = filename;
+          a.rel = "noopener";
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+
+          setTimeout(function () {
+            URL.revokeObjectURL(blobUrl);
+          }, 4000);
+        } catch (err) {
+          const win = window.open("", "_blank");
+          if (win && win.document) {
+            win.document.write(
+              '<html><body style="margin:0;background:#111;display:flex;align-items:center;justify-content:center;">' +
+              '<img src="' + dataUrl + '" style="max-width:100%;height:auto;" alt="' + filename + '" />' +
+              "</body></html>"
+            );
+            win.document.close();
+          } else {
+            logStatus("PNG出力エラー: ポップアップを確認してください");
+          }
+        }
+      }
+
+      const exportPngBtn = document.getElementById("export-png");
+      if (exportPngBtn) {
+        exportPngBtn.addEventListener("click", function () {
+          try {
+            const off = document.createElement("canvas");
+            renderPageToCanvas(currentPage(), off, includeGridOnExport);
+            const dataUrl = off.toDataURL("image/png");
+            const filename = "図面_P" + (currentPageIndex + 1) + ".png";
+            openPngFallback(dataUrl, filename);
+            setStatus((currentPageIndex + 1) + " ページ目のPNG出力を実行しました");
+            logStatus("PNG出力完了");
+          } catch (err) {
+            logStatus("PNG失敗: " + (err && err.message ? err.message : "エラー"));
+          }
+        });
+      }
+
+      const exportPdfBtn = document.getElementById("export-pdf");
+      if (exportPdfBtn) {
+        exportPdfBtn.addEventListener("click", function () {
+          try {
+            const container = document.getElementById("print-container");
+            if (!container) {
+              logStatus("印刷領域が見つかりません");
+              return;
+            }
+            container.innerHTML = "";
+            const dataUrls = [];
+
+            pages.forEach(function (p, idx) {
+              const off = document.createElement("canvas");
+              renderPageToCanvas(p, off, includeGridOnExport);
+              const url = off.toDataURL("image/png");
+              dataUrls.push({ page: idx + 1, url: url });
+
+              const div = document.createElement("div");
+              div.className = "print-page";
+              const img = document.createElement("img");
+              img.src = url;
+              div.appendChild(img);
+              container.appendChild(div);
+            });
+
+            setStatus("PDF印刷画面を開きます（「PDFに保存」または共有を選択）");
+            logStatus("PDF準備完了 (" + dataUrls.length + "P)");
+
+            let printed = false;
+            setTimeout(function () {
+              try {
+                window.print();
+                printed = true;
+              } catch (_) {
+                printed = false;
+              }
+
+              if (!printed) {
+                const win = window.open("", "_blank");
+                if (win && win.document) {
+                  const imgsHtml = dataUrls.map(function (item) {
+                    return '<div style="margin:12px auto;text-align:center;page-break-after:always;">' +
+                      '<div style="font-size:12px;color:#555;margin-bottom:4px;">' + item.page + ' ページ目</div>' +
+                      '<img src="' + item.url + '" style="max-width:100%;height:auto;border:1px solid #ccc;" />' +
+                      '</div>';
+                  }).join("");
+                  win.document.write(
+                    '<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>PDF出力用プレビュー</title></head>' +
+                    '<body style="margin:0;padding:12px;background:#f8fafc;font-family:sans-serif;">' +
+                    '<div style="text-align:center;margin-bottom:12px;"><button onclick="window.print()" style="padding:10px 18px;font-size:15px;">印刷 / PDF保存</button></div>' +
+                    imgsHtml +
+                    '</body></html>'
+                  );
+                  win.document.close();
+                }
+              }
+            }, 200);
+          } catch (err) {
+            logStatus("PDF失敗: " + (err && err.message ? err.message : "エラー"));
+          }
+        });
+      }
+
+      window.addEventListener("resize", resizeCanvasDisplay);
+      resizeCanvasDisplay();
+      updateUIState();
+      logStatus("準備完了");
+    })();
+  </script>
+</body>
+</html>
