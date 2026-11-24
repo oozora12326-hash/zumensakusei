@@ -81,6 +81,27 @@
       font-weight: bold;
     }
 
+    button.btn-danger {
+      background: #dc2626;
+      border-color: #fca5a5;
+      color: #ffffff;
+      font-weight: bold;
+    }
+
+    button.btn-back {
+      background: #475569;
+      border-color: #94a3b8;
+      color: #ffffff;
+      font-weight: bold;
+    }
+
+    button.btn-print {
+      background: #059669;
+      border-color: #6ee7b7;
+      color: #ffffff;
+      font-weight: bold;
+    }
+
     button:disabled {
       opacity: 0.4;
     }
@@ -125,6 +146,78 @@
       color: #cbd5e1;
     }
 
+    /* 見やすい出力プレビュー画面 */
+    .preview-overlay {
+      position: fixed;
+      inset: 0;
+      background: #111827;
+      z-index: 200;
+      display: none;
+      flex-direction: column;
+    }
+
+    .preview-overlay.open {
+      display: flex;
+    }
+
+    .preview-header {
+      background: #1f2937;
+      border-bottom: 1px solid #374151;
+      padding: 10px 14px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .preview-title {
+      font-size: 14px;
+      font-weight: bold;
+      color: #f9fafb;
+    }
+
+    .preview-actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .preview-body {
+      flex: 1;
+      overflow: auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .preview-card {
+      width: 100%;
+      max-width: 960px;
+      background: #1f2937;
+      border: 1px solid #374151;
+      border-radius: 10px;
+      padding: 12px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.45);
+    }
+
+    .preview-page-label {
+      font-size: 13px;
+      font-weight: bold;
+      color: #e5e7eb;
+      margin-bottom: 8px;
+    }
+
+    .preview-card img {
+      display: block;
+      width: 100%;
+      height: auto;
+      background: #ffffff;
+      border-radius: 4px;
+    }
+
     #print-area {
       display: none;
     }
@@ -167,7 +260,7 @@
 
     <button type="button" id="b-undo" disabled>戻す</button>
     <button type="button" id="b-redo" disabled>やり直し</button>
-    <button type="button" id="b-clear">全消去</button>
+    <button type="button" id="b-clear" class="btn-danger">全消去</button>
   </div>
 
   <div id="stamp-panel" class="stamp-panel hidden">
@@ -199,7 +292,7 @@
     <button type="button" id="z-in">拡大 +</button>
     <button type="button" id="z-reset">リセット</button>
 
-    <button type="button" id="b-orient">A4縦</button>
+    <button type="button" id="b-orient">A4横</button>
     <button type="button" id="b-grid" class="on">方眼: ON</button>
     <button type="button" id="b-grid-exp" class="on">出力方眼: ON</button>
 
@@ -214,6 +307,19 @@
   </div>
 
   <div class="status" id="status">起動中...</div>
+
+  <!-- 出力プレビュー画面 -->
+  <div id="preview-overlay" class="preview-overlay">
+    <div class="preview-header">
+      <div class="preview-title" id="preview-title">出力プレビュー</div>
+      <div class="preview-actions">
+        <button type="button" id="preview-print" class="btn-print">印刷 / PDF保存</button>
+        <button type="button" id="preview-back" class="btn-back">← 戻る</button>
+      </div>
+    </div>
+    <div class="preview-body" id="preview-body"></div>
+  </div>
+
   <div id="print-area"></div>
 
   <script>
@@ -224,6 +330,10 @@
       const workspace = document.getElementById("workspace");
       const stampPanel = document.getElementById("stamp-panel");
       const stampItemsEl = document.getElementById("stamp-items");
+      const previewOverlay = document.getElementById("preview-overlay");
+      const previewBody = document.getElementById("preview-body");
+      const previewTitle = document.getElementById("preview-title");
+      const previewPrintBtn = document.getElementById("preview-print");
 
       const A4_S = 1240;
       const A4_L = 1754;
@@ -252,7 +362,8 @@
       ];
       let selectedStampId = "s1";
 
-      let pages = [{ orient: "portrait", els: [], undo: [], redo: [] }];
+      // 標準の画面表示をA4横に設定
+      let pages = [{ orient: "landscape", els: [], undo: [], redo: [] }];
       let pageIdx = 0;
 
       let drawing = false;
@@ -797,42 +908,67 @@
         this.classList.toggle("on", exportGrid);
       });
 
+      function openOutputPreview(modeLabel, targetPages) {
+        const printArea = document.getElementById("print-area");
+        previewBody.innerHTML = "";
+        printArea.innerHTML = "";
+        previewTitle.textContent = modeLabel + "（" + targetPages.length + "ページ）";
+
+        targetPages.forEach(function (p, i) {
+          const off = document.createElement("canvas");
+          renderPage(p, off, exportGrid);
+          const dataUrl = off.toDataURL("image/png");
+
+          const card = document.createElement("div");
+          card.className = "preview-card";
+
+          const label = document.createElement("div");
+          label.className = "preview-page-label";
+          label.textContent = (i + 1) + " ページ目（" + (p.orient === "portrait" ? "A4縦" : "A4横") + "）";
+
+          const img = document.createElement("img");
+          img.src = dataUrl;
+          img.alt = (i + 1) + "ページ目";
+
+          card.appendChild(label);
+          card.appendChild(img);
+          previewBody.appendChild(card);
+
+          const pDiv = document.createElement("div");
+          pDiv.className = "p-page";
+          const pImg = document.createElement("img");
+          pImg.src = dataUrl;
+          pDiv.appendChild(pImg);
+          printArea.appendChild(pDiv);
+        });
+
+        previewOverlay.classList.add("open");
+        previewBody.scrollTop = 0;
+        statusEl.textContent = modeLabel + "を表示中（「← 戻る」で編集画面へ戻れます）";
+      }
+
       document.getElementById("b-png").addEventListener("click", function () {
-        const off = document.createElement("canvas");
-        renderPage(page(), off, exportGrid);
-        const url = off.toDataURL("image/png");
-        const w = window.open("", "_blank");
-        if (w) {
-          w.document.write('<img src="' + url + '" style="max-width:100%;height:auto;" />');
-          w.document.close();
-        }
-        statusEl.textContent = "PNG画像プレビューを開きました（長押しで保存できます）";
+        openOutputPreview("PNG画像プレビュー（長押しで画像保存）", [page()]);
       });
 
       document.getElementById("b-pdf").addEventListener("click", function () {
-        const area = document.getElementById("print-area");
-        area.innerHTML = "";
-        pages.forEach(function (p) {
-          const off = document.createElement("canvas");
-          renderPage(p, off, exportGrid);
-          const div = document.createElement("div");
-          div.className = "p-page";
-          const img = document.createElement("img");
-          img.src = off.toDataURL("image/png");
-          div.appendChild(img);
-          area.appendChild(div);
-        });
-        statusEl.textContent = "PDF印刷画面を呼び出します";
-        setTimeout(function () {
-          window.print();
-        }, 150);
+        openOutputPreview("PDF出力プレビュー", pages);
+      });
+
+      previewPrintBtn.addEventListener("click", function () {
+        window.print();
+      });
+
+      document.getElementById("preview-back").addEventListener("click", function () {
+        previewOverlay.classList.remove("open");
+        statusEl.textContent = "図面編集画面に戻りました";
       });
 
       window.addEventListener("resize", layoutCanvas);
       renderStamps();
       layoutCanvas();
       syncButtons();
-      statusEl.textContent = "準備完了（タップして操作してください）";
+      statusEl.textContent = "準備完了（A4横で表示中）";
     })();
   </script>
 </body>
