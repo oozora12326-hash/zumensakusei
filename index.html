@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>A4図面ホワイトボード</title>
+  <title>A4図面ホワイトボード（線・L字補正強化版）</title>
   <style>
     * {
       box-sizing: border-box;
@@ -35,6 +35,16 @@
       flex-wrap: wrap;
       gap: 6px;
       align-items: center;
+    }
+
+    .folder-badge {
+      background: #1d4ed8;
+      border: 1px solid #93c5fd;
+      color: #ffffff;
+      font-size: 12px;
+      font-weight: bold;
+      padding: 6px 10px;
+      border-radius: 6px;
     }
 
     .stamp-panel {
@@ -146,7 +156,110 @@
       color: #cbd5e1;
     }
 
-    /* 見やすい出力プレビュー画面 */
+    /* モーダル共通 */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.72);
+      z-index: 300;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+
+    .modal-backdrop.open {
+      display: flex;
+    }
+
+    .modal-card {
+      width: 100%;
+      max-width: 420px;
+      max-height: 90vh;
+      overflow-y: auto;
+      background: #1f2937;
+      border: 1px solid #4b5563;
+      border-radius: 12px;
+      padding: 18px;
+      box-shadow: 0 14px 36px rgba(0, 0, 0, 0.6);
+    }
+
+    .modal-card h3 {
+      margin: 0 0 12px 0;
+      font-size: 16px;
+      color: #f9fafb;
+    }
+
+    .section-box {
+      background: #111827;
+      border: 1px solid #374151;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 12px;
+    }
+
+    .section-box.danger-box {
+      border-color: #991b1b;
+    }
+
+    .section-title {
+      font-size: 13px;
+      font-weight: bold;
+      color: #93c5fd;
+      margin-bottom: 8px;
+    }
+
+    .section-title.danger-title {
+      color: #fca5a5;
+    }
+
+    .modal-label {
+      display: block;
+      font-size: 12px;
+      color: #d1d5db;
+      margin-bottom: 5px;
+    }
+
+    .modal-select,
+    .modal-input {
+      width: 100%;
+      padding: 9px 11px;
+      font-size: 14px;
+      border-radius: 8px;
+      border: 1px solid #6b7280;
+      background: #1f2937;
+      color: #ffffff;
+      margin-bottom: 10px;
+    }
+
+    .modal-error {
+      color: #fca5a5;
+      font-size: 12px;
+      min-height: 18px;
+      margin-bottom: 8px;
+    }
+
+    .modal-ok {
+      color: #6ee7b7;
+      font-size: 12px;
+      min-height: 18px;
+      margin-bottom: 8px;
+    }
+
+    .modal-hint {
+      font-size: 11px;
+      color: #9ca3af;
+      margin-bottom: 12px;
+      line-height: 1.5;
+    }
+
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    /* 出力プレビュー画面 */
     .preview-overlay {
       position: fixed;
       inset: 0;
@@ -242,6 +355,11 @@
 </head>
 <body>
   <div class="bar">
+    <span class="folder-badge" id="folder-badge">📁 現場A</span>
+    <button type="button" id="b-folder">フォルダ切替</button>
+    <button type="button" id="b-manage">フォルダ管理</button>
+    <button type="button" id="b-lock">ロック</button>
+
     <button type="button" id="t-pen" class="active">ペン</button>
     <button type="button" id="t-stamp">記号スタンプ</button>
     <button type="button" id="t-dim">寸法線</button>
@@ -308,6 +426,119 @@
 
   <div class="status" id="status">起動中...</div>
 
+  <!-- フォルダ選択＆パスワード入力モーダル -->
+  <div id="folder-modal" class="modal-backdrop">
+    <div class="modal-card">
+      <h3>フォルダ選択とパスワード入力</h3>
+      <label class="modal-label" for="folder-select">開くフォルダ</label>
+      <select id="folder-select" class="modal-select"></select>
+
+      <label class="modal-label" for="folder-pw-input">フォルダのパスワード</label>
+      <input
+        type="password"
+        id="folder-pw-input"
+        class="modal-input"
+        placeholder="パスワードを入力"
+        autocomplete="off"
+      />
+      <div class="modal-error" id="folder-pw-error"></div>
+      <div class="modal-hint">
+        サンプル初期PW：現場A＝1111 / 現場B＝2222 / 共有＝3333
+      </div>
+      <div class="modal-actions">
+        <button type="button" id="folder-cancel">キャンセル</button>
+        <button type="button" id="folder-enter" class="active">開く</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- フォルダ追加・パスワード変更・削除モーダル -->
+  <div id="manage-modal" class="modal-backdrop">
+    <div class="modal-card">
+      <h3>フォルダ管理（追加・PW変更・削除）</h3>
+
+      <div class="section-box">
+        <div class="section-title">＋ 新しいフォルダを追加</div>
+        <label class="modal-label" for="new-folder-name">フォルダ名</label>
+        <input
+          type="text"
+          id="new-folder-name"
+          class="modal-input"
+          placeholder="例: 現場C"
+          autocomplete="off"
+        />
+        <label class="modal-label" for="new-folder-pw">新しいフォルダのパスワード</label>
+        <input
+          type="password"
+          id="new-folder-pw"
+          class="modal-input"
+          placeholder="パスワードを設定"
+          autocomplete="off"
+        />
+        <div class="modal-actions">
+          <button type="button" id="btn-create-folder" class="active">フォルダを追加</button>
+        </div>
+      </div>
+
+      <div class="section-box">
+        <div class="section-title">🔑 フォルダのパスワードを変更</div>
+        <label class="modal-label" for="pw-target-select">対象フォルダ</label>
+        <select id="pw-target-select" class="modal-select"></select>
+
+        <label class="modal-label" for="pw-current-input">現在のパスワード</label>
+        <input
+          type="password"
+          id="pw-current-input"
+          class="modal-input"
+          placeholder="現在のパスワードを入力"
+          autocomplete="off"
+        />
+
+        <label class="modal-label" for="pw-new-input">新しいパスワード</label>
+        <input
+          type="password"
+          id="pw-new-input"
+          class="modal-input"
+          placeholder="新しいパスワードを入力"
+          autocomplete="off"
+        />
+
+        <div class="modal-actions">
+          <button type="button" id="btn-change-pw" class="on">パスワード変更</button>
+        </div>
+      </div>
+
+      <div class="section-box danger-box">
+        <div class="section-title danger-title">🗑️ 不要なフォルダを削除</div>
+        <label class="modal-label" for="del-target-select">削除するフォルダ</label>
+        <select id="del-target-select" class="modal-select"></select>
+
+        <label class="modal-label" for="del-pw-input">削除対象フォルダのパスワード</label>
+        <input
+          type="password"
+          id="del-pw-input"
+          class="modal-input"
+          placeholder="パスワードを入力して確認"
+          autocomplete="off"
+        />
+
+        <div class="modal-hint">
+          ※ フォルダ内のページ・図面データも一緒に削除されます。最後の1フォルダは削除できません。
+        </div>
+        <div class="modal-actions">
+          <button type="button" id="btn-delete-folder" class="btn-danger">フォルダを削除</button>
+        </div>
+      </div>
+
+      <div class="modal-error" id="manage-error"></div>
+      <div class="modal-ok" id="manage-ok"></div>
+
+      <div class="modal-actions">
+        <button type="button" id="manage-close" class="btn-back">閉じる</button>
+      </div>
+    </div>
+  </div>
+
   <!-- 出力プレビュー画面 -->
   <div id="preview-overlay" class="preview-overlay">
     <div class="preview-header">
@@ -324,6 +555,8 @@
 
   <script>
     (function () {
+      const STORAGE_KEY = "a4_board_folder_data_v1";
+
       const statusEl = document.getElementById("status");
       const cv = document.getElementById("cv");
       const ctx = cv.getContext("2d");
@@ -335,8 +568,95 @@
       const previewTitle = document.getElementById("preview-title");
       const previewPrintBtn = document.getElementById("preview-print");
 
+      const folderBadge = document.getElementById("folder-badge");
+      const folderModal = document.getElementById("folder-modal");
+      const folderSelect = document.getElementById("folder-select");
+      const folderPwInput = document.getElementById("folder-pw-input");
+      const folderPwError = document.getElementById("folder-pw-error");
+
+      const manageModal = document.getElementById("manage-modal");
+      const newFolderNameInput = document.getElementById("new-folder-name");
+      const newFolderPwInput = document.getElementById("new-folder-pw");
+      const pwTargetSelect = document.getElementById("pw-target-select");
+      const pwCurrentInput = document.getElementById("pw-current-input");
+      const pwNewInput = document.getElementById("pw-new-input");
+      const delTargetSelect = document.getElementById("del-target-select");
+      const delPwInput = document.getElementById("del-pw-input");
+      const manageError = document.getElementById("manage-error");
+      const manageOk = document.getElementById("manage-ok");
+
       const A4_S = 1240;
       const A4_L = 1754;
+
+      const DEFAULT_FOLDERS = [
+        { id: "site_a", name: "現場A", password: "1111" },
+        { id: "site_b", name: "現場B", password: "2222" },
+        { id: "shared", name: "共有", password: "3333" }
+      ];
+
+      let folders = [];
+      const folderPagesMap = {};
+      const folderPageIdxMap = {};
+      const unlockedFolders = {};
+      let currentFolderId = "site_a";
+
+      function makeBlankPage() {
+        return { orient: "landscape", els: [], undo: [], redo: [] };
+      }
+
+      function saveToStorage() {
+        try {
+          const payload = {
+            folders: folders,
+            folderPagesMap: folderPagesMap,
+            folderPageIdxMap: folderPageIdxMap
+          };
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+        } catch (_) {}
+      }
+
+      function loadFromStorage() {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (!raw) return false;
+          const parsed = JSON.parse(raw);
+          if (!Array.isArray(parsed.folders) || parsed.folders.length === 0) return false;
+
+          folders = parsed.folders;
+          folders.forEach(function (f) {
+            const savedPages = parsed.folderPagesMap && parsed.folderPagesMap[f.id];
+            folderPagesMap[f.id] = Array.isArray(savedPages) && savedPages.length > 0
+              ? savedPages.map(function (pg) {
+                  return {
+                    orient: pg.orient === "portrait" ? "portrait" : "landscape",
+                    els: Array.isArray(pg.els) ? pg.els : [],
+                    undo: Array.isArray(pg.undo) ? pg.undo : [],
+                    redo: Array.isArray(pg.redo) ? pg.redo : []
+                  };
+                })
+              : [makeBlankPage()];
+            const idx = (parsed.folderPageIdxMap && parsed.folderPageIdxMap[f.id]) || 0;
+            folderPageIdxMap[f.id] = Math.max(0, Math.min(idx, folderPagesMap[f.id].length - 1));
+          });
+          currentFolderId = folders[0].id;
+          return true;
+        } catch (_) {
+          return false;
+        }
+      }
+
+      if (!loadFromStorage()) {
+        folders = DEFAULT_FOLDERS.map(function (f) { return Object.assign({}, f); });
+        folders.forEach(function (f) {
+          folderPagesMap[f.id] = [makeBlankPage()];
+          folderPageIdxMap[f.id] = 0;
+        });
+        currentFolderId = folders[0].id;
+      }
+
+      unlockedFolders[currentFolderId] = true;
+      folderModal.classList.remove("open");
+      let allowModalCancel = true;
 
       let tool = "pen";
       let autoShape = true;
@@ -362,36 +682,289 @@
       ];
       let selectedStampId = "s1";
 
-      // 標準の画面表示をA4横に設定
-      let pages = [{ orient: "landscape", els: [], undo: [], redo: [] }];
-      let pageIdx = 0;
-
       let drawing = false;
       let pts = [];
       let dStart = null;
       let dCurr = null;
 
+      function currentFolderObj() {
+        return folders.find(function (f) { return f.id === currentFolderId; }) || folders[0];
+      }
+
+      function pages() {
+        return folderPagesMap[currentFolderId];
+      }
+
+      function pageIdx() {
+        return folderPageIdxMap[currentFolderId] || 0;
+      }
+
+      function setPageIdx(nextIdx) {
+        folderPageIdxMap[currentFolderId] = nextIdx;
+        saveToStorage();
+      }
+
       function page() {
-        return pages[pageIdx];
+        return pages()[pageIdx()];
       }
 
       function sizeOf(p) {
         return p.orient === "portrait" ? { w: A4_S, h: A4_L } : { w: A4_L, h: A4_S };
       }
 
+      function updateFolderBadge() {
+        const f = currentFolderObj();
+        folderBadge.textContent = "📁 " + f.name;
+      }
+
+      function openFolderModal(targetId, canCancel) {
+        allowModalCancel = canCancel !== false;
+        document.getElementById("folder-cancel").style.display = allowModalCancel ? "inline-block" : "none";
+        folderSelect.innerHTML = "";
+        folders.forEach(function (f) {
+          const opt = document.createElement("option");
+          opt.value = f.id;
+          opt.textContent = f.name + (unlockedFolders[f.id] ? "（認証済）" : "（要PW）");
+          if (f.id === (targetId || currentFolderId)) opt.selected = true;
+          folderSelect.appendChild(opt);
+        });
+        folderPwInput.value = "";
+        folderPwError.textContent = "";
+        folderModal.classList.add("open");
+        setTimeout(function () {
+          try { folderPwInput.focus(); } catch (_) {}
+        }, 50);
+      }
+
+      function closeFolderModal() {
+        if (!allowModalCancel) return;
+        folderModal.classList.remove("open");
+        folderPwError.textContent = "";
+      }
+
+      folderSelect.addEventListener("change", function () {
+        const selId = folderSelect.value;
+        folderPwError.textContent = "";
+        if (unlockedFolders[selId]) {
+          folderPwInput.value = "";
+          folderPwError.textContent = "このフォルダは認証済みです（そのまま「開く」を押せます）";
+        }
+      });
+
+      document.getElementById("b-folder").addEventListener("click", function () {
+        openFolderModal(currentFolderId, true);
+      });
+
+      document.getElementById("b-lock").addEventListener("click", function () {
+        delete unlockedFolders[currentFolderId];
+        statusEl.textContent = "フォルダ「" + currentFolderObj().name + "」をロックしました";
+        openFolderModal(currentFolderId, false);
+      });
+
+      document.getElementById("folder-cancel").addEventListener("click", closeFolderModal);
+
+      document.getElementById("folder-enter").addEventListener("click", function () {
+        const selId = folderSelect.value;
+        const targetFolder = folders.find(function (f) { return f.id === selId; });
+        if (!targetFolder) return;
+
+        const inputPw = folderPwInput.value;
+        if (!unlockedFolders[selId] && inputPw !== targetFolder.password) {
+          folderPwError.textContent = "パスワードが正しくありません。";
+          return;
+        }
+
+        unlockedFolders[selId] = true;
+        currentFolderId = selId;
+        folderModal.classList.remove("open");
+        folderPwError.textContent = "";
+        updateFolderBadge();
+        layoutCanvas();
+        syncButtons();
+        statusEl.textContent = "フォルダ「" + targetFolder.name + "」を開きました";
+      });
+
+      folderPwInput.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") {
+          document.getElementById("folder-enter").click();
+        }
+      });
+
+      /* フォルダ追加・パスワード変更・削除モーダル処理 */
+      function refreshFolderSelects(preferredId) {
+        const targetPref = preferredId || currentFolderId;
+        pwTargetSelect.innerHTML = "";
+        delTargetSelect.innerHTML = "";
+
+        folders.forEach(function (f) {
+          const opt1 = document.createElement("option");
+          opt1.value = f.id;
+          opt1.textContent = f.name;
+          if (f.id === targetPref) opt1.selected = true;
+          pwTargetSelect.appendChild(opt1);
+
+          const opt2 = document.createElement("option");
+          opt2.value = f.id;
+          opt2.textContent = f.name;
+          if (f.id === targetPref) opt2.selected = true;
+          delTargetSelect.appendChild(opt2);
+        });
+
+        document.getElementById("btn-delete-folder").disabled = folders.length <= 1;
+      }
+
+      document.getElementById("b-manage").addEventListener("click", function () {
+        newFolderNameInput.value = "";
+        newFolderPwInput.value = "";
+        pwCurrentInput.value = "";
+        pwNewInput.value = "";
+        delPwInput.value = "";
+        manageError.textContent = "";
+        manageOk.textContent = "";
+        refreshFolderSelects(currentFolderId);
+        manageModal.classList.add("open");
+      });
+
+      document.getElementById("manage-close").addEventListener("click", function () {
+        manageModal.classList.remove("open");
+        updateFolderBadge();
+      });
+
+      document.getElementById("btn-create-folder").addEventListener("click", function () {
+        manageError.textContent = "";
+        manageOk.textContent = "";
+        const name = (newFolderNameInput.value || "").trim();
+        const pw = newFolderPwInput.value || "";
+
+        if (!name) {
+          manageError.textContent = "新しいフォルダ名を入力してください。";
+          return;
+        }
+        if (!pw) {
+          manageError.textContent = "新しいフォルダのパスワードを入力してください。";
+          return;
+        }
+        if (folders.some(function (f) { return f.name === name; })) {
+          manageError.textContent = "同じ名前のフォルダがすでに存在します。";
+          return;
+        }
+
+        const newId = "fld_" + Date.now() + "_" + Math.floor(Math.random() * 1000);
+        folders.push({ id: newId, name: name, password: pw });
+        folderPagesMap[newId] = [makeBlankPage()];
+        folderPageIdxMap[newId] = 0;
+        unlockedFolders[newId] = true;
+        currentFolderId = newId;
+
+        saveToStorage();
+        updateFolderBadge();
+        layoutCanvas();
+        syncButtons();
+        refreshFolderSelects(newId);
+
+        newFolderNameInput.value = "";
+        newFolderPwInput.value = "";
+        manageOk.textContent = "フォルダ「" + name + "」を追加し、切り替えました。";
+        statusEl.textContent = "新しいフォルダ「" + name + "」を追加しました";
+      });
+
+      document.getElementById("btn-change-pw").addEventListener("click", function () {
+        manageError.textContent = "";
+        manageOk.textContent = "";
+        const targetId = pwTargetSelect.value;
+        const target = folders.find(function (f) { return f.id === targetId; });
+        if (!target) {
+          manageError.textContent = "対象フォルダが見つかりません。";
+          return;
+        }
+
+        const curPw = pwCurrentInput.value || "";
+        const nextPw = pwNewInput.value || "";
+
+        if (curPw !== target.password) {
+          manageError.textContent = "現在のパスワードが正しくありません。";
+          return;
+        }
+        if (!nextPw) {
+          manageError.textContent = "新しいパスワードを入力してください。";
+          return;
+        }
+
+        target.password = nextPw;
+        if (target.id !== currentFolderId) {
+          delete unlockedFolders[target.id];
+        }
+        saveToStorage();
+
+        pwCurrentInput.value = "";
+        pwNewInput.value = "";
+        manageOk.textContent = "フォルダ「" + target.name + "」のパスワードを変更しました。";
+        statusEl.textContent = "フォルダ「" + target.name + "」のパスワードを変更しました";
+      });
+
+      document.getElementById("btn-delete-folder").addEventListener("click", function () {
+        manageError.textContent = "";
+        manageOk.textContent = "";
+
+        if (folders.length <= 1) {
+          manageError.textContent = "最後の1フォルダは削除できません。";
+          return;
+        }
+
+        const targetId = delTargetSelect.value;
+        const target = folders.find(function (f) { return f.id === targetId; });
+        if (!target) {
+          manageError.textContent = "削除対象フォルダが見つかりません。";
+          return;
+        }
+
+        const inputPw = delPwInput.value || "";
+        if (inputPw !== target.password) {
+          manageError.textContent = "パスワードが正しくないため削除できません。";
+          return;
+        }
+
+        if (!window.confirm("フォルダ「" + target.name + "」とその中の図面データを完全に削除しますか？")) {
+          return;
+        }
+
+        folders = folders.filter(function (f) { return f.id !== targetId; });
+        delete folderPagesMap[targetId];
+        delete folderPageIdxMap[targetId];
+        delete unlockedFolders[targetId];
+
+        if (currentFolderId === targetId) {
+          currentFolderId = folders[0].id;
+          unlockedFolders[currentFolderId] = true;
+        }
+
+        saveToStorage();
+        updateFolderBadge();
+        layoutCanvas();
+        syncButtons();
+        refreshFolderSelects(currentFolderId);
+        delPwInput.value = "";
+
+        manageOk.textContent = "フォルダ「" + target.name + "」を削除しました。";
+        statusEl.textContent = "フォルダ「" + target.name + "」を削除しました（現在: " + currentFolderObj().name + "）";
+      });
+
       function saveUndo() {
         const p = page();
         p.undo.push(JSON.stringify(p.els));
         p.redo = [];
+        saveToStorage();
         syncButtons();
       }
 
       function syncButtons() {
         const p = page();
-        document.getElementById("p-label").textContent = (pageIdx + 1) + " / " + pages.length + " ページ";
-        document.getElementById("p-prev").disabled = pageIdx === 0;
-        document.getElementById("p-next").disabled = pageIdx === pages.length - 1;
-        document.getElementById("p-del").disabled = pages.length <= 1;
+        const list = pages();
+        const idx = pageIdx();
+        document.getElementById("p-label").textContent = (idx + 1) + " / " + list.length + " ページ";
+        document.getElementById("p-prev").disabled = idx === 0;
+        document.getElementById("p-next").disabled = idx === list.length - 1;
+        document.getElementById("p-del").disabled = list.length <= 1;
         document.getElementById("b-undo").disabled = p.undo.length === 0;
         document.getElementById("b-redo").disabled = p.redo.length === 0;
         document.getElementById("b-orient").textContent = p.orient === "portrait" ? "A4縦" : "A4横";
@@ -562,6 +1135,12 @@
             c.moveTo(el.x1, el.y1);
             c.lineTo(el.x2, el.y2);
             c.stroke();
+          } else if (el.type === "lshape") {
+            c.beginPath();
+            c.moveTo(el.x1, el.y1);
+            c.lineTo(el.cx, el.cy);
+            c.lineTo(el.x2, el.y2);
+            c.stroke();
           } else if (el.type === "rect") {
             c.strokeRect(el.x, el.y, el.w, el.h);
           } else if (el.type === "circle") {
@@ -603,12 +1182,74 @@
         };
       }
 
-      function makeShape(points) {
-        if (!autoShape || points.length < 6) {
-          return { type: "stroke", pts: points, color: color, width: width };
+      /* 線・L字・図形補正ヘルパー */
+      function distPointToSegment(p, a, b) {
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const lenSq = dx * dx + dy * dy;
+        if (lenSq === 0) return Math.hypot(p.x - a.x, p.y - a.y);
+        const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / lenSq));
+        const px = a.x + t * dx;
+        const py = a.y + t * dy;
+        return Math.hypot(p.x - px, p.y - py);
+      }
+
+      function resamplePoints(points, count) {
+        if (points.length <= 2 || count < 3) return points.slice();
+        const cum = [0];
+        for (let i = 1; i < points.length; i++) {
+          cum.push(cum[i - 1] + Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y));
         }
+        const total = cum[cum.length - 1];
+        if (total < 1) return points.slice();
+        const out = [points[0]];
+        let j = 1;
+        for (let k = 1; k < count - 1; k++) {
+          const target = (total * k) / (count - 1);
+          while (j < cum.length - 1 && cum[j] < target) j++;
+          const d0 = cum[j - 1];
+          const d1 = cum[j];
+          const ratio = d1 > d0 ? (target - d0) / (d1 - d0) : 0;
+          out.push({
+            x: points[j - 1].x + (points[j].x - points[j - 1].x) * ratio,
+            y: points[j - 1].y + (points[j].y - points[j - 1].y) * ratio
+          });
+        }
+        out.push(points[points.length - 1]);
+        return out;
+      }
+
+      function snapNearAxisAngle(p1, p2) {
+        const dx = p2.x - p1.x;
+        const dy = p2.y - p1.y;
+        const len = Math.hypot(dx, dy);
+        if (len < 12) return p2;
+        const deg = (Math.atan2(dy, dx) * 180) / Math.PI;
+        const targets = [0, 45, 90, 135, 180, -45, -90, -135, -180];
+        for (let i = 0; i < targets.length; i++) {
+          if (Math.abs(deg - targets[i]) <= 6) {
+            const rad = (targets[i] * Math.PI) / 180;
+            return {
+              x: p1.x + len * Math.cos(rad),
+              y: p1.y + len * Math.sin(rad)
+            };
+          }
+        }
+        return p2;
+      }
+
+      function makeShape(points) {
+        if (!autoShape || points.length < 3) {
+          return { type: "stroke", pts: points, color: color, width: width, label: "手書き" };
+        }
+
+        const normPts = resamplePoints(points, 48);
+        const first = normPts[0];
+        const last = normPts[normPts.length - 1];
+        const endDist = Math.hypot(last.x - first.x, last.y - first.y);
+
         let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-        points.forEach(function (pt) {
+        normPts.forEach(function (pt) {
           if (pt.x < minX) minX = pt.x;
           if (pt.y < minY) minY = pt.y;
           if (pt.x > maxX) maxX = pt.x;
@@ -616,22 +1257,129 @@
         });
         const w = maxX - minX;
         const h = maxY - minY;
-        const first = points[0];
-        const last = points[points.length - 1];
-        const closed = Math.hypot(last.x - first.x, last.y - first.y) < 50 && w > 35 && h > 35;
-        if (closed) {
+        const diag = Math.hypot(w, h);
+
+        // 1. 直線判定（端点が離れていて、始点〜終点直線からの最大ズレが小さい場合）
+        let maxLineErr = 0;
+        for (let i = 1; i < normPts.length - 1; i++) {
+          const d = distPointToSegment(normPts[i], first, last);
+          if (d > maxLineErr) maxLineErr = d;
+        }
+        const lineTol = Math.max(10, Math.min(28, endDist * 0.065));
+        if (endDist > 22 && maxLineErr <= lineTol) {
+          const snappedEnd = snapNearAxisAngle(first, last);
+          return {
+            type: "line",
+            x1: first.x,
+            y1: first.y,
+            x2: snappedEnd.x,
+            y2: snappedEnd.y,
+            color: color,
+            width: width,
+            label: "直線"
+          };
+        }
+
+        // 2. L字判定（端点が閉じておらず、途中で1つの折れ点（角）を持つ場合）
+        const isClosed = endDist < Math.max(42, diag * 0.24) && w > 28 && h > 28;
+        if (!isClosed && endDist > 25) {
+          let bestCornerIdx = -1;
+          let bestCornerDist = 0;
+          for (let i = 4; i < normPts.length - 4; i++) {
+            const d = distPointToSegment(normPts[i], first, last);
+            if (d > bestCornerDist) {
+              bestCornerDist = d;
+              bestCornerIdx = i;
+            }
+          }
+
+          if (bestCornerIdx > 0 && bestCornerDist > Math.max(16, endDist * 0.14)) {
+            const cornerCandidate = normPts[bestCornerIdx];
+            let err1 = 0;
+            for (let i = 1; i < bestCornerIdx; i++) {
+              const d = distPointToSegment(normPts[i], first, cornerCandidate);
+              if (d > err1) err1 = d;
+            }
+            let err2 = 0;
+            for (let i = bestCornerIdx + 1; i < normPts.length - 1; i++) {
+              const d = distPointToSegment(normPts[i], cornerCandidate, last);
+              if (d > err2) err2 = d;
+            }
+
+            const leg1Len = Math.hypot(cornerCandidate.x - first.x, cornerCandidate.y - first.y);
+            const leg2Len = Math.hypot(last.x - cornerCandidate.x, last.y - cornerCandidate.y);
+            const legTol1 = Math.max(12, leg1Len * 0.11);
+            const legTol2 = Math.max(12, leg2Len * 0.11);
+
+            if (leg1Len > 18 && leg2Len > 18 && err1 <= legTol1 && err2 <= legTol2) {
+              // 2辺の交点を角として算出し、水平/垂直に近い場合は角を直角スナップ
+              let cx = cornerCandidate.x;
+              let cy = cornerCandidate.y;
+              const p1Snap = snapNearAxisAngle(first, cornerCandidate);
+              const p2Snap = snapNearAxisAngle(last, cornerCandidate);
+
+              const v1x = p1Snap.x - first.x;
+              const v1y = p1Snap.y - first.y;
+              const v2x = p2Snap.x - last.x;
+              const v2y = p2Snap.y - last.y;
+              const det = v1x * v2y - v1y * v2x;
+              if (Math.abs(det) > 1e-3) {
+                const t = ((last.x - first.x) * v2y - (last.y - first.y) * v2x) / det;
+                if (t > -0.2 && t < 1.35) {
+                  cx = first.x + t * v1x;
+                  cy = first.y + t * v1y;
+                }
+              }
+
+              return {
+                type: "lshape",
+                x1: first.x,
+                y1: first.y,
+                cx: cx,
+                cy: cy,
+                x2: last.x,
+                y2: last.y,
+                color: color,
+                width: width,
+                label: "L字"
+              };
+            }
+          }
+        }
+
+        // 3. 閉じた図形（円・矩形）判定
+        if (isClosed) {
           let area = 0;
-          for (let i = 0; i < points.length; i++) {
-            const j = (i + 1) % points.length;
-            area += points[i].x * points[j].y - points[j].x * points[i].y;
+          for (let i = 0; i < normPts.length; i++) {
+            const j = (i + 1) % normPts.length;
+            area += normPts[i].x * normPts[j].y - normPts[j].x * normPts[i].y;
           }
           const ratio = (Math.abs(area) / 2) / Math.max(1, w * h);
           if (ratio < 0.85) {
-            return { type: "circle", cx: (minX + maxX) / 2, cy: (minY + maxY) / 2, rx: w / 2, ry: h / 2, color: color, width: width };
+            return {
+              type: "circle",
+              cx: (minX + maxX) / 2,
+              cy: (minY + maxY) / 2,
+              rx: w / 2,
+              ry: h / 2,
+              color: color,
+              width: width,
+              label: "円"
+            };
           }
-          return { type: "rect", x: minX, y: minY, w: w, h: h, color: color, width: width };
+          return {
+            type: "rect",
+            x: minX,
+            y: minY,
+            w: w,
+            h: h,
+            color: color,
+            width: width,
+            label: "矩形"
+          };
         }
-        return { type: "stroke", pts: points, color: color, width: width };
+
+        return { type: "stroke", pts: points, color: color, width: width, label: "手書き" };
       }
 
       cv.addEventListener("pointerdown", function (e) {
@@ -650,6 +1398,7 @@
             flipped: !!st.flipped,
             color: color
           });
+          saveToStorage();
           drawAll();
           statusEl.textContent = "記号「" + st.name + "」を配置しました";
           return;
@@ -662,6 +1411,7 @@
             if (ex === undefined || ey === undefined) return true;
             return Math.hypot(pt.x - ex, pt.y - ey) > 45;
           });
+          saveToStorage();
           drawAll();
           statusEl.textContent = "付近の要素を消去しました";
           return;
@@ -703,6 +1453,7 @@
                 text: val.trim() || "寸法",
                 color: color
               });
+              saveToStorage();
             }
           }
           dStart = null;
@@ -711,10 +1462,15 @@
           return;
         }
         if (tool === "pen" && pts.length > 0) {
+          const created = makeShape(pts);
           saveUndo();
-          page().els.push(makeShape(pts));
+          page().els.push(created);
+          saveToStorage();
           pts = [];
           drawAll();
+          if (autoShape && created.label) {
+            statusEl.textContent = "描画完了（補正: " + created.label + "）";
+          }
         }
       });
 
@@ -814,6 +1570,7 @@
         if (!p.undo.length) return;
         p.redo.push(JSON.stringify(p.els));
         p.els = JSON.parse(p.undo.pop());
+        saveToStorage();
         drawAll();
         syncButtons();
       });
@@ -823,6 +1580,7 @@
         if (!p.redo.length) return;
         p.undo.push(JSON.stringify(p.els));
         p.els = JSON.parse(p.redo.pop());
+        saveToStorage();
         drawAll();
         syncButtons();
       });
@@ -831,37 +1589,50 @@
         if (!window.confirm("現在のページを全消去しますか？")) return;
         saveUndo();
         page().els = [];
+        saveToStorage();
         drawAll();
         statusEl.textContent = "全消去しました";
       });
 
       document.getElementById("p-prev").addEventListener("click", function () {
-        if (pageIdx > 0) { pageIdx--; layoutCanvas(); syncButtons(); }
+        const idx = pageIdx();
+        if (idx > 0) { setPageIdx(idx - 1); layoutCanvas(); syncButtons(); }
       });
 
       document.getElementById("p-next").addEventListener("click", function () {
-        if (pageIdx < pages.length - 1) { pageIdx++; layoutCanvas(); syncButtons(); }
+        const idx = pageIdx();
+        if (idx < pages().length - 1) { setPageIdx(idx + 1); layoutCanvas(); syncButtons(); }
       });
 
       document.getElementById("p-add").addEventListener("click", function () {
-        pages.splice(pageIdx + 1, 0, { orient: page().orient, els: [], undo: [], redo: [] });
-        pageIdx++;
+        const list = pages();
+        const idx = pageIdx();
+        list.splice(idx + 1, 0, { orient: page().orient, els: [], undo: [], redo: [] });
+        folderPageIdxMap[currentFolderId] = idx + 1;
+        saveToStorage();
         layoutCanvas();
         syncButtons();
       });
 
       document.getElementById("p-dup").addEventListener("click", function () {
+        const list = pages();
+        const idx = pageIdx();
         const src = page();
-        pages.splice(pageIdx + 1, 0, { orient: src.orient, els: JSON.parse(JSON.stringify(src.els)), undo: [], redo: [] });
-        pageIdx++;
+        list.splice(idx + 1, 0, { orient: src.orient, els: JSON.parse(JSON.stringify(src.els)), undo: [], redo: [] });
+        folderPageIdxMap[currentFolderId] = idx + 1;
+        saveToStorage();
         layoutCanvas();
         syncButtons();
       });
 
       document.getElementById("p-del").addEventListener("click", function () {
-        if (pages.length <= 1) return;
-        pages.splice(pageIdx, 1);
-        if (pageIdx >= pages.length) pageIdx = pages.length - 1;
+        const list = pages();
+        if (list.length <= 1) return;
+        let idx = pageIdx();
+        list.splice(idx, 1);
+        if (idx >= list.length) idx = list.length - 1;
+        folderPageIdxMap[currentFolderId] = idx;
+        saveToStorage();
         layoutCanvas();
         syncButtons();
       });
@@ -891,6 +1662,7 @@
 
       document.getElementById("b-orient").addEventListener("click", function () {
         page().orient = page().orient === "portrait" ? "landscape" : "portrait";
+        saveToStorage();
         layoutCanvas();
         syncButtons();
       });
@@ -912,7 +1684,7 @@
         const printArea = document.getElementById("print-area");
         previewBody.innerHTML = "";
         printArea.innerHTML = "";
-        previewTitle.textContent = modeLabel + "（" + targetPages.length + "ページ）";
+        previewTitle.textContent = modeLabel + "（" + currentFolderObj().name + " / " + targetPages.length + "ページ）";
 
         targetPages.forEach(function (p, i) {
           const off = document.createElement("canvas");
@@ -952,7 +1724,7 @@
       });
 
       document.getElementById("b-pdf").addEventListener("click", function () {
-        openOutputPreview("PDF出力プレビュー", pages);
+        openOutputPreview("PDF出力プレビュー", pages());
       });
 
       previewPrintBtn.addEventListener("click", function () {
@@ -965,10 +1737,11 @@
       });
 
       window.addEventListener("resize", layoutCanvas);
+      updateFolderBadge();
       renderStamps();
       layoutCanvas();
       syncButtons();
-      statusEl.textContent = "準備完了（A4横で表示中）";
+      statusEl.textContent = "準備完了（フォルダ: " + currentFolderObj().name + " / A4横）";
     })();
   </script>
 </body>
